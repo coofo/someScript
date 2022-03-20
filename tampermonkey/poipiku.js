@@ -1,19 +1,22 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.1
+// @version      0.0.2
 // @description  poipiku图片下载
 // @author       coofo
-// @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @include      /^https://poipiku\.com/\d+/\d+\.html/
 // @include      /^https://poipiku\.com/(\d+)(/?$|/?\?)/
+// @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @connect      img.poipiku.com
 // @grant        GM_download
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 
 (function (tools) {
     'use strict';
     //setting
+    let setting = tools.setting;
     /**
      * 文件名格式（包括路径）
      * ${userId}       用户ID
@@ -24,19 +27,19 @@
      * ${page3}        插图序号（3位）
      * ${page4}        插图序号（4位）
      */
-    const fileNameTemplate = "[poipiku]/[${userId}]${userName}/[${id}]-${page2}";
+    setting.fileNameTemplate = "[poipiku]/[${userId}]${userName}/[${id}]-${page2}";
 
     /**
      * zip文件名格式（包括路径）
      */
-    const zipNameTemplate = "[poipiku][${userId}]${userName}[${id}]";
+    setting.zipNameTemplate = "[poipiku][${userId}]${userName}[${id}]";
 
     /**
      * 下载模式
      * single：将图片文件单个下载（如果需要保存的文件有文件夹结构，则需要将tampermonkey下载模式调整为【浏览器API】）
      * zip：将图片打成zip包下载
      */
-    const downloadMode = "single";
+    setting.downloadMode = "zip";
 
     //setting end
 
@@ -76,7 +79,7 @@
                 tools.poipiku.downloadHelp.addItem(match[1], match[2], userName);
             }
             tools.poipiku.downloadHelp.generateDownloadList(getImgUrlFunction, function () {
-                tools.poipiku.downloadHelp.doDownload({mode: downloadMode, fileNameTemplate: fileNameTemplate});
+                tools.poipiku.downloadHelp.doDownload();
             });
         });
 
@@ -109,7 +112,7 @@
             tools.runtime.downloadTask.showMsg("开始下载");
             tools.poipiku.downloadHelp.addItem(match[1], match[2], userName);
             tools.poipiku.downloadHelp.generateDownloadList(getImgUrlFunction, function () {
-                tools.poipiku.downloadHelp.doDownload({mode: downloadMode, fileNameTemplate: fileNameTemplate});
+                tools.poipiku.downloadHelp.doDownload();
             });
         });
 
@@ -121,7 +124,7 @@
 
 
 })((function () {
-    const tools = {commonUtils: {}, poipiku: {}};
+    const tools = {setting: {}, commonUtils: {}, poipiku: {}};
     const constants = {};
     const cache = {};
 
@@ -146,7 +149,6 @@
             }
         }
     };
-
 
     tools.commonUtils.format = {
         num: {
@@ -248,18 +250,27 @@
     tools.commonUtils.downloadHelp = {
         toBlob: {
             asBlob: function (url, onSuccess) {
-                $.ajax({
-                    url: url,
-                    type: 'get',
-                    contentType: "blob",
-                    success: function (blob) {
-                        onSuccess(blob);
+                GM_xmlhttpRequest({
+                    method:"GET",
+                    url:url,
+                    responseType : "arraybuffer",
+                    onload:function (responseDetails) {
+                        onSuccess(responseDetails.response);
                     }
                 });
+
+                // let oReq = new XMLHttpRequest();
+                // oReq.open("GET", url, true);
+                // oReq.responseType = "arraybuffer";
+                // oReq.setRequestHeader("origin",null);
+                // oReq.onload = function (oEvent) {
+                //     onSuccess(oReq.response);
+                // };
+                // oReq.send(null);
             }
         },
         toUser: {
-            asTagA: function (url, fileName) {
+            asTagA4Url: function (url, fileName) {
                 let aLink = document.createElement('a');
                 if (fileName) {
                     aLink.download = fileName;
@@ -280,6 +291,28 @@
                 }
                 document.body.removeChild(aLink);
             },
+            asTagA4Blob: function (content, fileName) {
+                if ('msSaveOrOpenBlob' in navigator) {
+                    navigator.msSaveOrOpenBlob(content, fileName);
+                } else {
+                    let aLink = document.createElement('a');
+                    aLink.className = 'download-temp-node';
+                    aLink.download = fileName;
+                    aLink.style = "display:none;";
+                    let blob = new Blob([content], {type: content.type});
+                    aLink.href = window.URL.createObjectURL(blob);
+                    document.body.appendChild(aLink);
+                    if (document.all) {
+                        aLink.click(); //IE
+                    } else {
+                        let evt = document.createEvent("MouseEvents");
+                        evt.initEvent("click", true, true);
+                        aLink.dispatchEvent(evt); // 其它浏览器
+                    }
+                    window.URL.revokeObjectURL(aLink.href);
+                    document.body.removeChild(aLink);
+                }
+            },
             asGMdownload: function (url, fileName, setting) {
                 let details;
                 if (typeof setting === "object" && typeof setting.gmDownload === "object") {
@@ -292,8 +325,7 @@
                 console.log(details.url);
                 console.log(details.name);
                 GM_download(details);
-            },
-            asTask: {}
+            }
         }
     };
 
@@ -435,15 +467,20 @@
                 });
             }
         },
-        doDownload: function (setting) {
-            switch (setting.mode) {
+        doDownload: function () {
+            let setting = tools.setting;
+            switch (setting.downloadMode) {
                 case "single":
+                    this.doDownloadSingle();
+                    break;
+                case "zip":
                 default:
-                    this.doDownloadSingle(setting);
+                    this.doDownloadZip();
                     break;
             }
         },
-        doDownloadSingle: function (setting) {
+        doDownloadSingle: function () {
+            let setting = tools.setting;
             let list = tools.runtime.downloadTask.waitDownloadList;
             let totalNum = list.length;
             if (totalNum <= 0) {
@@ -480,9 +517,57 @@
                     }
                 });
             }
+        },
+        doDownloadZip: function () {
+            let setting = tools.setting;
+            let list = tools.runtime.downloadTask.waitDownloadList;
+            let totalNum = list.length;
+            if (totalNum <= 0) {
+                tools.runtime.downloadTask.showMsg("下载目标为0");
+                return;
+            }
+            tools.runtime.downloadTask.showMsg("下载 0%");
+
+            let zip = new JSZip();
+            for (let i = 0; i < list.length; i++) {
+                // let url = tools.commonUtils.format.url.fullUrl(list[i].url);
+                let url = list[i].url;
+                let map = list[i].info;
+                let fileName = tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
+                tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (arrayBuffer) {
+                    tools.runtime.downloadTask.downloadFinishNum++;
+                    let completeNum = tools.runtime.downloadTask.downloadFinishNum;
+                    let totalNum = tools.runtime.downloadTask.waitDownloadList.length;
+                    let persent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
+                    tools.runtime.downloadTask.showMsg("下载 " + persent);
+
+                    zip.file(fileName, arrayBuffer);
+
+                    if (completeNum >= totalNum) {
+                        zip.generateAsync({type: "blob"}).then(function (content) {
+
+                            let id = "";
+                            if (tools.poipiku.utils.isDetailPage()) {
+                                id = map.id;
+                            }
+                            let info = {
+                                userId: map.userId,
+                                userName: map.userName,
+                                id: id,
+                                page: "",
+                                page2: "",
+                                page3: "",
+                                page4: ""
+                            };
+
+                            let zipFileName = tools.commonUtils.format.string.byMap(setting.zipNameTemplate, info) + ".zip";
+                            tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
+                            tools.runtime.downloadTask.showMsg("下载完成");
+                        });
+                    }
+                })
+            }
         }
-
     };
-
     return tools;
 })());
