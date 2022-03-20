@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.2
-// @description  poipiku图片下载
+// @version      0.0.4
+// @license      AGPL License
+// @description  poipiku图片下载的试做，还没有针对异常进行处理，如果下载范围内作品有限制关注、密码等可能造成异常。之后应该会完善_(：3 」∠ )_
 // @author       coofo
 // @include      /^https://poipiku\.com/\d+/\d+\.html/
 // @include      /^https://poipiku\.com/(\d+)(/?$|/?\?)/
 // @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @connect      img.poipiku.com
+// @connect      img-org.poipiku.com
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
@@ -40,6 +42,8 @@
      * zip：将图片打成zip包下载
      */
     setting.downloadMode = "zip";
+
+    setting.downloadRetryTimes = 3;
 
     //setting end
 
@@ -251,10 +255,10 @@
         toBlob: {
             asBlob: function (url, onSuccess) {
                 GM_xmlhttpRequest({
-                    method:"GET",
-                    url:url,
-                    responseType : "arraybuffer",
-                    onload:function (responseDetails) {
+                    method: "GET",
+                    url: url,
+                    responseType: "arraybuffer",
+                    onload: function (responseDetails) {
                         onSuccess(responseDetails.response);
                     }
                 });
@@ -509,6 +513,32 @@
                         onerror: function (e) {
                             console.error("GM_download error");
                             console.error(e);
+                            setTimeout((function () {
+                                tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
+                                    gmDownload: {
+                                        saveAs: false,
+                                        onload: function () {
+                                            tools.runtime.downloadTask.downloadFinishNum++;
+                                            let completeNum = tools.runtime.downloadTask.downloadFinishNum;
+                                            let totalNum = tools.runtime.downloadTask.waitDownloadList.length;
+                                            let persent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
+                                            tools.runtime.downloadTask.showMsg("下载 " + persent);
+                                            if (completeNum >= totalNum) {
+                                                tools.runtime.downloadTask.showMsg("下载完成");
+                                            }
+                                        },
+                                        onerror: function (e) {
+                                            console.error("GM_download error");
+                                            console.error(e);
+
+                                        },
+                                        ontimeout: function (e) {
+                                            console.error("GM_download timeout");
+                                            console.error(e);
+                                        }
+                                    }
+                                });
+                            }),2000)
                         },
                         ontimeout: function (e) {
                             console.error("GM_download timeout");
