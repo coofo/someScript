@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.4
+// @version      0.1.0
 // @license      AGPL License
-// @description  poipiku图片下载的试做，还没有针对异常进行处理，如果下载范围内作品有限制关注、密码等可能造成异常。之后应该会完善_(：3 」∠ )_
+// @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
 // @include      /^https://poipiku\.com/\d+/\d+\.html/
 // @include      /^https://poipiku\.com/(\d+)(/?$|/?\?)/
@@ -96,6 +96,7 @@
             if (tools.runtime.nowDownloading) return;
             tools.runtime.nowDownloading = true;
 
+            setting.pass = $("input.IllustItemExpandPass").val();
             let url = window.location.href;
             let match = url.match(tools.poipiku.regex.detailUrl);
             // console.log(match);
@@ -128,7 +129,7 @@
 
 
 })((function () {
-    const tools = {setting: {}, commonUtils: {}, poipiku: {}};
+    const tools = {setting: {pass: ""}, commonUtils: {}, poipiku: {}};
     const constants = {};
     const cache = {};
 
@@ -146,7 +147,7 @@
                 return i;
             },
             waitDownloadList: [],
-            getDownloadedNum:function (){
+            getDownloadedNum: function () {
                 let i = 0;
                 for (let j = 0; j < this.waitDownloadList.length; j++) {
                     if (this.waitDownloadList[j].complete === true) {
@@ -273,7 +274,7 @@
                     url: url,
                     responseType: "arraybuffer",
                     onload: function (responseDetails) {
-                        onSuccess(responseDetails.response);
+                        onSuccess(responseDetails);
                     }
                 });
             }
@@ -365,11 +366,17 @@
     };
 
     tools.poipiku.api = {
+        /**
+         * result_num 返回值统计
+         *     成功返回                1
+         *     follower                2
+         *     需要密码但是密码错误    -2
+         */
         getSmallImgUrl: function (uid, iid, onSuccess, onError, onComplete) {
             let data = {
                 UID: uid,
                 IID: iid,
-                PAS: "",
+                PAS: tools.setting.pass,
                 MD: 0,
                 TWF: -1
             };
@@ -396,12 +403,17 @@
                 complete: onComplete
             });
         },
+        /**
+         * result 返回值统计
+         *     成功返回                1
+         *     需要密码但是密码错误    -3
+         */
         getOrgImgUrl: function (id, td, onSuccess, onError, onComplete) {
             let data = {
                 ID: id,
                 TD: td,
                 AD: -1,
-                PAS: ""
+                PAS: tools.setting.pass
             };
             $.ajax({
                 url: "/f/ShowIllustDetailF.jsp",
@@ -442,7 +454,12 @@
             tools.runtime.downloadTask.waitItemList.push({userId: userId, id: id, userName: userName, complete: false});
         },
         addDownloadList: function (url, info) {
-            tools.runtime.downloadTask.waitDownloadList.push({url: url, info: info, complete: false});
+            tools.runtime.downloadTask.waitDownloadList.push({
+                url: url,
+                info: info,
+                complete: false,
+                lastRetryTimes: tools.setting.downloadRetryTimes
+            });
         },
         generateDownloadList: function (getImgUrlFunction, onFinish) {
             tools.runtime.downloadTask.showMsg("解析地址 0%");
@@ -483,137 +500,186 @@
             }
         },
         doDownload: function () {
-            let setting = tools.setting;
-            let downloadMode = this.syncDownload;
-            switch (setting.downloadMode) {
-                case "single":
-                    downloadMode.doDownloadSingle();
-                    break;
-                case "zip":
-                default:
-                    downloadMode.doDownloadZip();
-                    break;
+            let list = tools.runtime.downloadTask.waitDownloadList;
+            if (list.length <= 0) {
+                tools.runtime.downloadTask.showMsg("下载目标为0");
+                return;
+            }
+            this.downloadService.async.exec();
+            // this.downloadService.sync.exec();
+        },
+        fileNameService: {
+            getFileName: function (downloadItem) {
+                let setting = tools.setting;
+                let map = downloadItem.info;
+                return tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
             }
         },
-        syncDownload: {
-            doDownloadSingle: function () {
-                let setting = tools.setting;
-                let list = tools.runtime.downloadTask.waitDownloadList;
-                let totalNum = list.length;
-                if (totalNum <= 0) {
-                    tools.runtime.downloadTask.showMsg("下载目标为0");
-                    return;
-                }
-                tools.runtime.downloadTask.showMsg("下载 0%");
+        downloadService: {
+            async: {
+                exec: function () {
+                    let onSuccess;
+                    let downloadFunction;
+                    let setting = tools.setting;
+                    switch (setting.downloadMode) {
+                        case "single":
+                            downloadFunction = this.downloadItemSingle;
+                            onSuccess = function () {
+                                tools.poipiku.downloadHelp.refreshDownLoadStatus();
+                                let downloadTask = tools.runtime.downloadTask;
+                                if (downloadTask.getDownloadedNum() >= downloadTask.waitDownloadList.length) {
+                                    downloadTask.showMsg("下载完成");
+                                }
+                            };
+                            break;
+                        case "zip":
+                        default:
+                            downloadFunction = this.downloadItemZip;
+                            let zip = new JSZip();
+                            onSuccess = function (fileName, arrayBuffer, map) {
+                                zip.file(fileName, arrayBuffer);
 
-                for (let i = 0; i < list.length; i++) {
-                    let downloadItem = list[i];
+                                tools.poipiku.downloadHelp.refreshDownLoadStatus();
+                                let downloadTask = tools.runtime.downloadTask;
+                                if (downloadTask.getDownloadedNum() >= downloadTask.waitDownloadList.length) {
+                                    zip.generateAsync({type: "blob"}).then(function (content) {
+
+                                        let id = "";
+                                        if (tools.poipiku.utils.isDetailPage()) {
+                                            id = map.id;
+                                        }
+                                        let info = {
+                                            userId: map.userId,
+                                            userName: map.userName,
+                                            id: id,
+                                            page: "",
+                                            page2: "",
+                                            page3: "",
+                                            page4: ""
+                                        };
+
+                                        let zipFileName = tools.commonUtils.format.string.byMap(setting.zipNameTemplate, info) + ".zip";
+                                        tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
+                                        tools.runtime.downloadTask.showMsg("下载完成");
+                                    });
+                                }
+                            };
+                            break;
+                    }
+
+                    let list = tools.runtime.downloadTask.waitDownloadList;
+                    for (let i = 0; i < list.length; i++) {
+                        let downloadItem = list[i];
+                        downloadFunction(downloadItem, onSuccess);
+                    }
+                },
+                downloadItemSingle(downloadItem, onSuccess) {
                     let url = tools.commonUtils.format.url.fullUrl(downloadItem.url);
-                    let map = downloadItem.info;
-                    let fileName = tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
+                    let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
                     tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
                         gmDownload: {
                             saveAs: false,
                             onload: function () {
                                 downloadItem.complete = true;
-                                tools.poipiku.downloadHelp.refreshDownLoadStatus();
-                                if (tools.runtime.downloadTask.getDownloadedNum() >= totalNum) {
-                                    tools.runtime.downloadTask.showMsg("下载完成");
-                                }
+                                onSuccess();
                             },
                             onerror: function (e) {
-                                console.error("GM_download error");
+                                console.error("GM_download error: " + url);
                                 console.error(e);
-                                setTimeout((function () {
-                                    tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
-                                        gmDownload: {
-                                            saveAs: false,
-                                            onload: function () {
-                                                downloadItem.complete = true;
-                                                tools.poipiku.downloadHelp.refreshDownLoadStatus();
-                                                if (tools.runtime.downloadTask.getDownloadedNum() >= totalNum) {
-                                                    tools.runtime.downloadTask.showMsg("下载完成");
-                                                }
-                                            },
-                                            onerror: function (e) {
-                                                console.error("GM_download error");
-                                                console.error(e);
-                                                console.log(url);
-                                                console.log(fileName);
-                                            },
-                                            ontimeout: function (e) {
-                                                console.error("GM_download timeout");
-                                                console.error(e);
-                                            }
-                                        }
-                                    });
-                                }), 2000)
+                                if (downloadItem.lastRetryTimes > 0) {
+                                    setTimeout((function () {
+                                        downloadItem.lastRetryTimes--;
+                                        tools.poipiku.downloadHelp.downloadService.async.downloadItemSingle(downloadItem, onSuccess);
+                                    }), 2000)
+                                } else {
+                                    console.error("超过重试限制");
+                                }
+
                             },
                             ontimeout: function (e) {
                                 console.error("GM_download timeout");
                                 console.error(e);
+                                if (downloadItem.lastRetryTimes > 0) {
+                                    setTimeout((function () {
+                                        downloadItem.lastRetryTimes--;
+                                        tools.poipiku.downloadHelp.downloadService.async.downloadItemSingle(downloadItem, onSuccess);
+                                    }), 2000)
+                                } else {
+                                    console.error("超过重试限制");
+                                }
                             }
                         }
                     });
-                }
-            },
-            doDownloadZip: function () {
-                let setting = tools.setting;
-                let list = tools.runtime.downloadTask.waitDownloadList;
-                let totalNum = list.length;
-                if (totalNum <= 0) {
-                    tools.runtime.downloadTask.showMsg("下载目标为0");
-                    return;
-                }
-                tools.runtime.downloadTask.showMsg("下载 0%");
-
-                let zip = new JSZip();
-                for (let i = 0; i < list.length; i++) {
-                    let downloadItem = list[i];
-                    // let url = tools.commonUtils.format.url.fullUrl(list[i].url);
-                    let url = downloadItem.url;
+                },
+                downloadItemZip(downloadItem, onSuccess) {
                     let map = downloadItem.info;
-                    let fileName = tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
-                    tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (arrayBuffer) {
-                        downloadItem.complete = true;
-                        tools.poipiku.downloadHelp.refreshDownLoadStatus();
-
-                        zip.file(fileName, arrayBuffer);
-
-                        if (tools.runtime.downloadTask.getDownloadedNum() >= totalNum) {
-                            zip.generateAsync({type: "blob"}).then(function (content) {
-
-                                let id = "";
-                                if (tools.poipiku.utils.isDetailPage()) {
-                                    id = map.id;
-                                }
-                                let info = {
-                                    userId: map.userId,
-                                    userName: map.userName,
-                                    id: id,
-                                    page: "",
-                                    page2: "",
-                                    page3: "",
-                                    page4: ""
-                                };
-
-                                let zipFileName = tools.commonUtils.format.string.byMap(setting.zipNameTemplate, info) + ".zip";
-                                tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
-                                tools.runtime.downloadTask.showMsg("下载完成");
-                            });
+                    let url = downloadItem.url;
+                    let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
+                    tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
+                        if (responseDetails.status === 200) {
+                            downloadItem.complete = true;
+                            onSuccess(fileName, responseDetails.response, map);
+                        } else {
+                            console.error("download error: " + url);
+                            console.error(responseDetails);
+                            if (downloadItem.lastRetryTimes > 0) {
+                                setTimeout((function () {
+                                    downloadItem.lastRetryTimes--;
+                                    tools.poipiku.downloadHelp.downloadService.async.downloadItemZip(downloadItem, onSuccess);
+                                }), 2000)
+                            } else {
+                                console.error("超过重试限制");
+                            }
                         }
                     })
                 }
-            }
-        },
-        asyncDownload: {
-            doDownloadSingle: function () {
-
             },
-            download:function (){
+            sync: {
+                exec: function () {
+                    let setting = tools.setting;
+                    switch (setting.downloadMode) {
+                        case "single":
+                            this.downloadItemSingle(0);
+                            break;
+                        case "zip":
+                        default:
+                            this.downloadItemZip(0);
+                            break;
+                    }
+                },
+                downloadItemSingle: function (index) {
+                    let orgIndex = index;
+                    let list = tools.runtime.downloadTask.waitDownloadList;
+                    if (index >= list.length) {
+                        setTimeout((function () {
+                            this.downloadItemSingle(0);
+                        }), 2000);
+                        return;
+                    }
+                    let downloadItem;
+                    do {
+                        if (index >= list.length) {
+                            tools.runtime.downloadTask.showMsg("下载完成");
+                            return;
+                        }
 
+                        downloadItem = list[index];
+
+                        if (downloadItem.lastRetryTimes > 0) {
+                            console.error("超过重试限制：" + downloadItem.url);
+                        }
+                        index++;
+                    } while (downloadItem.complete && downloadItem.lastRetryTimes > 0);
+
+
+                },
+                downloadItemZip: function (index) {
+                    let list = tools.runtime.downloadTask.waitDownloadList;
+
+                }
             }
         },
+
     };
     return tools;
 })());
