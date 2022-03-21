@@ -98,7 +98,7 @@
 
             let url = window.location.href;
             let match = url.match(tools.poipiku.regex.detailUrl);
-            console.log(match);
+            // console.log(match);
 
             let getImgUrlFunction = tools.poipiku.api.getOrgImgUrl;
             if (!tools.poipiku.utils.isLogin()) {
@@ -136,17 +136,31 @@
         nowDownloading: false,
         downloadTask: {
             waitItemList: [],
-            generatedNum: 0,
+            getGeneratedNum: function () {
+                let i = 0;
+                for (let j = 0; j < this.waitItemList.length; j++) {
+                    if (this.waitItemList[j].complete === true) {
+                        i++;
+                    }
+                }
+                return i;
+            },
             waitDownloadList: [],
-            downloadFinishNum: 0,
+            getDownloadedNum:function (){
+                let i = 0;
+                for (let j = 0; j < this.waitDownloadList.length; j++) {
+                    if (this.waitDownloadList[j].complete === true) {
+                        i++;
+                    }
+                }
+                return i;
+            },
             showMsg: function (msg) {
                 console.log(msg);
             },
             clear: function () {
                 this.waitItemList = [];
-                this.generatedNum = 0;
                 this.waitDownloadList = [];
-                this.downloadFinishNum = 0;
                 this.showMsg = function (msg) {
                     console.log(msg);
                 }
@@ -262,15 +276,6 @@
                         onSuccess(responseDetails.response);
                     }
                 });
-
-                // let oReq = new XMLHttpRequest();
-                // oReq.open("GET", url, true);
-                // oReq.responseType = "arraybuffer";
-                // oReq.setRequestHeader("origin",null);
-                // oReq.onload = function (oEvent) {
-                //     onSuccess(oReq.response);
-                // };
-                // oReq.send(null);
             }
         },
         toUser: {
@@ -326,8 +331,8 @@
                 }
                 details.url = url;
                 details.name = fileName;
-                console.log(details.url);
-                console.log(details.name);
+                // console.log(details.url);
+                // console.log(details.name);
                 GM_download(details);
             }
         }
@@ -375,7 +380,7 @@
                 dataType: 'json',
                 contentType: "application/x-www-form-urlencoded; charset=UTF-8",
                 success: function (request) {
-                    console.log(request);
+                    // console.log(request);
 
                     let div = document.createElement("div");
                     div.innerHTML = request.html;
@@ -405,13 +410,13 @@
                 dataType: 'json',
                 contentType: "application/x-www-form-urlencoded; charset=UTF-8",
                 success: function (request) {
-                    console.log(request);
+                    // console.log(request);
                     let div = document.createElement("div");
                     div.id = "temp";
                     document.body.appendChild(div);
                     div.innerHTML = request.html;
                     let imgs = $("#temp img");
-                    console.log(imgs);
+                    // console.log(imgs);
                     let imgUrls = [];
                     for (let i = 0; i < imgs.length; i++) {
                         imgUrls[i] = $(imgs[i]).attr("src");
@@ -427,19 +432,25 @@
     };
 
     tools.poipiku.downloadHelp = {
+        refreshDownLoadStatus: function () {
+            let completeNum = tools.runtime.downloadTask.getDownloadedNum();
+            let totalNum = tools.runtime.downloadTask.waitDownloadList.length;
+            let percent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
+            tools.runtime.downloadTask.showMsg("下载 " + percent);
+        },
         addItem: function (userId, id, userName) {
-            tools.runtime.downloadTask.waitItemList.push({userId: userId, id: id, userName: userName});
+            tools.runtime.downloadTask.waitItemList.push({userId: userId, id: id, userName: userName, complete: false});
         },
         addDownloadList: function (url, info) {
-            tools.runtime.downloadTask.waitDownloadList.push({url: url, info: info});
+            tools.runtime.downloadTask.waitDownloadList.push({url: url, info: info, complete: false});
         },
         generateDownloadList: function (getImgUrlFunction, onFinish) {
             tools.runtime.downloadTask.showMsg("解析地址 0%");
             let list = tools.runtime.downloadTask.waitItemList;
             for (let i = 0; i < list.length; i++) {
                 getImgUrlFunction(list[i].userId, list[i].id, function (imgUrls) {
-                    tools.runtime.downloadTask.generatedNum++;
-                    let completeNum = tools.runtime.downloadTask.generatedNum;
+                    list[i].complete = true;
+                    let completeNum = tools.runtime.downloadTask.getGeneratedNum();
                     let totalNum = tools.runtime.downloadTask.waitItemList.length;
                     let persent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
                     tools.runtime.downloadTask.showMsg("解析地址 " + persent);
@@ -473,131 +484,136 @@
         },
         doDownload: function () {
             let setting = tools.setting;
+            let downloadMode = this.syncDownload;
             switch (setting.downloadMode) {
                 case "single":
-                    this.doDownloadSingle();
+                    downloadMode.doDownloadSingle();
                     break;
                 case "zip":
                 default:
-                    this.doDownloadZip();
+                    downloadMode.doDownloadZip();
                     break;
             }
         },
-        doDownloadSingle: function () {
-            let setting = tools.setting;
-            let list = tools.runtime.downloadTask.waitDownloadList;
-            let totalNum = list.length;
-            if (totalNum <= 0) {
-                tools.runtime.downloadTask.showMsg("下载目标为0");
-                return;
-            }
-            tools.runtime.downloadTask.showMsg("下载 0%");
+        syncDownload: {
+            doDownloadSingle: function () {
+                let setting = tools.setting;
+                let list = tools.runtime.downloadTask.waitDownloadList;
+                let totalNum = list.length;
+                if (totalNum <= 0) {
+                    tools.runtime.downloadTask.showMsg("下载目标为0");
+                    return;
+                }
+                tools.runtime.downloadTask.showMsg("下载 0%");
 
-            for (let i = 0; i < list.length; i++) {
-                let url = tools.commonUtils.format.url.fullUrl(list[i].url);
-                let map = list[i].info;
-                let fileName = tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
-                tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
-                    gmDownload: {
-                        saveAs: false,
-                        onload: function () {
-                            tools.runtime.downloadTask.downloadFinishNum++;
-                            let completeNum = tools.runtime.downloadTask.downloadFinishNum;
-                            let totalNum = tools.runtime.downloadTask.waitDownloadList.length;
-                            let persent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
-                            tools.runtime.downloadTask.showMsg("下载 " + persent);
-                            if (completeNum >= totalNum) {
-                                tools.runtime.downloadTask.showMsg("下载完成");
-                            }
-                        },
-                        onerror: function (e) {
-                            console.error("GM_download error");
-                            console.error(e);
-                            setTimeout((function () {
-                                tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
-                                    gmDownload: {
-                                        saveAs: false,
-                                        onload: function () {
-                                            tools.runtime.downloadTask.downloadFinishNum++;
-                                            let completeNum = tools.runtime.downloadTask.downloadFinishNum;
-                                            let totalNum = tools.runtime.downloadTask.waitDownloadList.length;
-                                            let persent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
-                                            tools.runtime.downloadTask.showMsg("下载 " + persent);
-                                            if (completeNum >= totalNum) {
-                                                tools.runtime.downloadTask.showMsg("下载完成");
+                for (let i = 0; i < list.length; i++) {
+                    let downloadItem = list[i];
+                    let url = tools.commonUtils.format.url.fullUrl(downloadItem.url);
+                    let map = downloadItem.info;
+                    let fileName = tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
+                    tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
+                        gmDownload: {
+                            saveAs: false,
+                            onload: function () {
+                                downloadItem.complete = true;
+                                tools.poipiku.downloadHelp.refreshDownLoadStatus();
+                                if (tools.runtime.downloadTask.getDownloadedNum() >= totalNum) {
+                                    tools.runtime.downloadTask.showMsg("下载完成");
+                                }
+                            },
+                            onerror: function (e) {
+                                console.error("GM_download error");
+                                console.error(e);
+                                setTimeout((function () {
+                                    tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
+                                        gmDownload: {
+                                            saveAs: false,
+                                            onload: function () {
+                                                downloadItem.complete = true;
+                                                tools.poipiku.downloadHelp.refreshDownLoadStatus();
+                                                if (tools.runtime.downloadTask.getDownloadedNum() >= totalNum) {
+                                                    tools.runtime.downloadTask.showMsg("下载完成");
+                                                }
+                                            },
+                                            onerror: function (e) {
+                                                console.error("GM_download error");
+                                                console.error(e);
+                                                console.log(url);
+                                                console.log(fileName);
+                                            },
+                                            ontimeout: function (e) {
+                                                console.error("GM_download timeout");
+                                                console.error(e);
                                             }
-                                        },
-                                        onerror: function (e) {
-                                            console.error("GM_download error");
-                                            console.error(e);
-
-                                        },
-                                        ontimeout: function (e) {
-                                            console.error("GM_download timeout");
-                                            console.error(e);
                                         }
-                                    }
-                                });
-                            }),2000)
-                        },
-                        ontimeout: function (e) {
-                            console.error("GM_download timeout");
-                            console.error(e);
+                                    });
+                                }), 2000)
+                            },
+                            ontimeout: function (e) {
+                                console.error("GM_download timeout");
+                                console.error(e);
+                            }
                         }
-                    }
-                });
+                    });
+                }
+            },
+            doDownloadZip: function () {
+                let setting = tools.setting;
+                let list = tools.runtime.downloadTask.waitDownloadList;
+                let totalNum = list.length;
+                if (totalNum <= 0) {
+                    tools.runtime.downloadTask.showMsg("下载目标为0");
+                    return;
+                }
+                tools.runtime.downloadTask.showMsg("下载 0%");
+
+                let zip = new JSZip();
+                for (let i = 0; i < list.length; i++) {
+                    let downloadItem = list[i];
+                    // let url = tools.commonUtils.format.url.fullUrl(list[i].url);
+                    let url = downloadItem.url;
+                    let map = downloadItem.info;
+                    let fileName = tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
+                    tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (arrayBuffer) {
+                        downloadItem.complete = true;
+                        tools.poipiku.downloadHelp.refreshDownLoadStatus();
+
+                        zip.file(fileName, arrayBuffer);
+
+                        if (tools.runtime.downloadTask.getDownloadedNum() >= totalNum) {
+                            zip.generateAsync({type: "blob"}).then(function (content) {
+
+                                let id = "";
+                                if (tools.poipiku.utils.isDetailPage()) {
+                                    id = map.id;
+                                }
+                                let info = {
+                                    userId: map.userId,
+                                    userName: map.userName,
+                                    id: id,
+                                    page: "",
+                                    page2: "",
+                                    page3: "",
+                                    page4: ""
+                                };
+
+                                let zipFileName = tools.commonUtils.format.string.byMap(setting.zipNameTemplate, info) + ".zip";
+                                tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
+                                tools.runtime.downloadTask.showMsg("下载完成");
+                            });
+                        }
+                    })
+                }
             }
         },
-        doDownloadZip: function () {
-            let setting = tools.setting;
-            let list = tools.runtime.downloadTask.waitDownloadList;
-            let totalNum = list.length;
-            if (totalNum <= 0) {
-                tools.runtime.downloadTask.showMsg("下载目标为0");
-                return;
+        asyncDownload: {
+            doDownloadSingle: function () {
+
+            },
+            download:function (){
+
             }
-            tools.runtime.downloadTask.showMsg("下载 0%");
-
-            let zip = new JSZip();
-            for (let i = 0; i < list.length; i++) {
-                // let url = tools.commonUtils.format.url.fullUrl(list[i].url);
-                let url = list[i].url;
-                let map = list[i].info;
-                let fileName = tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
-                tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (arrayBuffer) {
-                    tools.runtime.downloadTask.downloadFinishNum++;
-                    let completeNum = tools.runtime.downloadTask.downloadFinishNum;
-                    let totalNum = tools.runtime.downloadTask.waitDownloadList.length;
-                    let persent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
-                    tools.runtime.downloadTask.showMsg("下载 " + persent);
-
-                    zip.file(fileName, arrayBuffer);
-
-                    if (completeNum >= totalNum) {
-                        zip.generateAsync({type: "blob"}).then(function (content) {
-
-                            let id = "";
-                            if (tools.poipiku.utils.isDetailPage()) {
-                                id = map.id;
-                            }
-                            let info = {
-                                userId: map.userId,
-                                userName: map.userName,
-                                id: id,
-                                page: "",
-                                page2: "",
-                                page3: "",
-                                page4: ""
-                            };
-
-                            let zipFileName = tools.commonUtils.format.string.byMap(setting.zipNameTemplate, info) + ".zip";
-                            tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
-                            tools.runtime.downloadTask.showMsg("下载完成");
-                        });
-                    }
-                })
-            }
-        }
+        },
     };
     return tools;
 })());
