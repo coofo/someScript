@@ -369,8 +369,10 @@
         /**
          * result_num 返回值统计
          *     成功返回                1
+         *     sign in                 1
          *     follower                2
          *     需要密码但是密码错误    -2
+         *     需要关注                -6
          */
         getSmallImgUrl: function (uid, iid, onSuccess, onError, onComplete) {
             let data = {
@@ -406,7 +408,9 @@
         /**
          * result 返回值统计
          *     成功返回                1
+         *     sign in                 1
          *     需要密码但是密码错误    -3
+         *     需要关注                -3
          */
         getOrgImgUrl: function (id, td, onSuccess, onError, onComplete) {
             let data = {
