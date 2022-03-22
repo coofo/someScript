@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.2
+// @version      0.1.3
 // @license      AGPL License
 // @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
@@ -142,6 +142,7 @@
         runtime: {
             nowDownloading: false,
             downloadTask: {
+                zip: null,
                 waitItemList: [],
                 getGeneratedNum: function () {
                     let i = 0;
@@ -367,9 +368,9 @@
                     }
                     return match[1];
                 },
-                tagZeroImgItem: function (userId, id) {
+                tagImgItem: function (userId, id, color) {
                     if (this.isDetailPage()) {
-                        $("#span_download").css("border", "2px solid red");
+                        $("#span_download").css("border", "2px solid " + color);
                     } else {
                         let itemList = $("a.IllustThumbImg");
                         for (let i = 0; i < itemList.length; i++) {
@@ -378,11 +379,17 @@
                             // if (match === null || match[1] !== userId || match[2] !== id) continue;
                             // item.css("border","4px solid red");
                             if (match !== null && match[1] === userId && match[2] === id) {
-                                item.parent().css("border", "4px solid red");
+                                item.parent().css("border", "4px solid " + color);
                                 return;
                             }
                         }
                     }
+                },
+                tagZeroImgItem: function (userId, id) {
+                    this.tagImgItem(userId, id, "red");
+                },
+                tagWarnImgItem: function (userId, id) {
+                    this.tagImgItem(userId, id, "orange");
                 }
             },
             api: {
@@ -393,6 +400,7 @@
                  *     sign in                 1
                  *     follower                2
                  *     需要密码但是密码错误    -2
+                 *     需要关注                -5
                  *     需要关注                -6
                  */
                 getSmallImgUrl: function (uid, iid, onSuccess, onError, onComplete) {
@@ -401,7 +409,7 @@
                         IID: iid,
                         PAS: tools.setting.pass,
                         MD: 0,
-                        TWF: -1
+                        TWF: 1
                     };
                     $.ajax({
                         url: "/f/ShowAppendFileF.jsp",
@@ -432,6 +440,8 @@
                  *     sign in                 1
                  *     需要密码但是密码错误    -3
                  *     需要关注                -3
+                 * error_code
+                 *     需要关注                -3
                  */
                 getOrgImgUrl: function (id, td, onSuccess, onError, onComplete) {
                     let data = {
@@ -447,23 +457,28 @@
                         dataType: 'json',
                         contentType: "application/x-www-form-urlencoded; charset=UTF-8",
                         success: function (request) {
-                            // console.log(request);
-                            let div = document.createElement("div");
-                            div.id = "temp";
-                            document.body.appendChild(div);
-                            div.innerHTML = request.html;
-                            let imgs = $("#temp img");
-                            // console.log(imgs);
-                            let imgUrls = [];
-                            for (let i = 0; i < imgs.length; i++) {
-                                imgUrls[i] = $(imgs[i]).attr("src");
-                            }
-                            if (imgUrls.length <= 0) {
-                                tools.poipiku.utils.tagZeroImgItem(id, td);
-                            }
-                            document.body.removeChild(div);
+                            if (request.error_code === -3) {
+                                tools.poipiku.utils.tagWarnImgItem(id, td);
+                                tools.poipiku.api.getSmallImgUrl(id, td, onSuccess, onError, onComplete)
+                            } else {
+                                // console.log(request);
+                                let div = document.createElement("div");
+                                div.id = "temp";
+                                document.body.appendChild(div);
+                                div.innerHTML = request.html;
+                                let imgs = $("#temp img");
+                                // console.log(imgs);
+                                let imgUrls = [];
+                                for (let i = 0; i < imgs.length; i++) {
+                                    imgUrls[i] = $(imgs[i]).attr("src");
+                                }
+                                if (imgUrls.length <= 0) {
+                                    tools.poipiku.utils.tagZeroImgItem(id, td);
+                                }
+                                document.body.removeChild(div);
 
-                            onSuccess(imgUrls);
+                                onSuccess(imgUrls);
+                            }
                         },
                         error: onError,
                         complete: onComplete
@@ -678,8 +693,8 @@
                                     break;
                                 case "zip":
                                 default:
-                                    let zip = new JSZip();
-                                    this.downloadItemZip(0, zip);
+                                    tools.runtime.downloadTask.zip = new JSZip();
+                                    this.downloadItemZip(0);
                                     break;
                             }
                         },
@@ -735,12 +750,12 @@
                                 tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index);
                             }
                         },
-                        downloadItemZip: function (index, zip) {
+                        downloadItemZip: function (index) {
                             let orgIndex = index;
                             let list = tools.runtime.downloadTask.waitDownloadList;
                             if (index >= list.length) {
                                 setTimeout((function () {
-                                    tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(0, zip);
+                                    tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(0);
                                 }), 500);
                                 return;
                             }
@@ -753,15 +768,15 @@
                                         let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
                                         tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
                                             if (responseDetails.status === 200) {
-                                                zip.file(fileName, responseDetails.response);
+                                                tools.runtime.downloadTask.zip.file(fileName, responseDetails.response);
                                                 downloadItem.complete = true;
                                                 tools.poipiku.downloadHelp.refreshDownLoadStatus();
-                                                tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index + 1, zip);
+                                                tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index + 1);
                                             } else {
                                                 console.error("download error: " + url);
                                                 console.error(responseDetails);
                                                 downloadItem.lastRetryTimes--;
-                                                tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index + 1, zip);
+                                                tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index + 1);
                                             }
                                         });
                                         return;
@@ -774,7 +789,7 @@
                             } while (index < list.length);
                             if (orgIndex === 0) {
 
-                                zip.generateAsync({type: "blob"}).then(function (content) {
+                                tools.runtime.downloadTask.zip.generateAsync({type: "blob"}).then(function (content) {
                                     let map = downloadItem.info;
                                     let id = "";
                                     if (tools.poipiku.utils.isDetailPage()) {
@@ -794,6 +809,7 @@
                                     tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
                                     tools.runtime.downloadTask.showMsg("下载完成");
                                 });
+                                tools.runtime.downloadTask.zip = null;
                             } else {
                                 tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index);
                             }
