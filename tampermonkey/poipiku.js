@@ -364,6 +364,19 @@
                         return url;
                     }
                     return match[1];
+                },
+                tagZeroImgItem: function (userId, id) {
+                    if (this.isDetailPage()) {
+                        $("#span_download").css("border","2px solid red");
+                    } else {
+                        let itemList = $("a.IllustThumbImg");
+                        for (let i = 0; i < itemList.length; i++) {
+                            let item = $(itemList[i]);
+                            let match = item.attr("href").match(/\/(\d+)\/(\d+)\.html$/);
+                            if (match === null || match[1] !== userId || match[2] !== id) continue;
+                            item.css("border","4px solid red")
+                        }
+                    }
                 }
             },
             api: {
@@ -778,7 +791,6 @@
                         }
                     }
                 },
-
             }
         }
     };
