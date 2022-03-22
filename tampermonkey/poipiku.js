@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.1
+// @version      0.1.2
 // @license      AGPL License
 // @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
+// @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/poipiku.js
+// @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://poipiku\.com/\d+/\d+\.html/
 // @include      /^https://poipiku\.com/(\d+)(/?$|/?\?)/
 // @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
@@ -367,14 +369,18 @@
                 },
                 tagZeroImgItem: function (userId, id) {
                     if (this.isDetailPage()) {
-                        $("#span_download").css("border","2px solid red");
+                        $("#span_download").css("border", "2px solid red");
                     } else {
                         let itemList = $("a.IllustThumbImg");
                         for (let i = 0; i < itemList.length; i++) {
                             let item = $(itemList[i]);
                             let match = item.attr("href").match(/\/(\d+)\/(\d+)\.html$/);
-                            if (match === null || match[1] !== userId || match[2] !== id) continue;
-                            item.css("border","4px solid red")
+                            // if (match === null || match[1] !== userId || match[2] !== id) continue;
+                            // item.css("border","4px solid red");
+                            if (match !== null && match[1] === userId && match[2] === id) {
+                                item.parent().css("border", "4px solid red");
+                                return;
+                            }
                         }
                     }
                 }
@@ -451,6 +457,9 @@
                             let imgUrls = [];
                             for (let i = 0; i < imgs.length; i++) {
                                 imgUrls[i] = $(imgs[i]).attr("src");
+                            }
+                            if (imgUrls.length <= 0) {
+                                tools.poipiku.utils.tagZeroImgItem(id, td);
                             }
                             document.body.removeChild(div);
 
