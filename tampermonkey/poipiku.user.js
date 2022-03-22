@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.3
+// @version      0.1.4
 // @license      AGPL License
 // @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
@@ -9,6 +9,7 @@
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://poipiku\.com/\d+/\d+\.html/
 // @include      /^https://poipiku\.com/(\d+)(/?$|/?\?)/
+// @include      /^https://poipiku.com/IllustListPcV\.jsp\?.*ID=(\d+)/
 // @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @connect      img.poipiku.com
 // @connect      img-org.poipiku.com
@@ -99,7 +100,7 @@
         //详情页面
         let span = $('div.IllustItemUser span');
         // span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;;padding: 0 10px 0 10px;flex: initial;" id="span_download">⬇下载</span>');
-        span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;" id="span_download">⬇下载</span>');
+        span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;flex: 0 0 0;padding: 0 13px" id="span_download">⬇下载</span>');
         $("#span_download").click(function () {
             let getImgUrlFunction = tools.poipiku.api.getOrgImgUrl;
             if (!tools.poipiku.utils.isLogin()) {
@@ -165,6 +166,9 @@
                 },
                 showMsg: function (msg) {
                     console.log(msg);
+                },
+                showFinished: function () {
+                    this.showMsg("下载完成：" + tools.runtime.downloadTask.getDownloadedNum());
                 },
                 clear: function () {
                     this.waitItemList = [];
@@ -346,7 +350,7 @@
         },
         poipiku: {
             regex: {
-                userUrl: /^https:\/\/poipiku\.com\/(\d+)(\/?$|\/?\?)/,
+                userUrl: [/^https:\/\/poipiku\.com\/(\d+)(\/?$|\/?\?)/, /https:\/\/poipiku.com\/IllustListPcV\.jsp\?.*ID=(\d+)/],
                 detailUrl: /^https:\/\/poipiku\.com\/(\d+)\/(\d+)\.html/
             },
             utils: {
@@ -355,7 +359,12 @@
                 },
                 isUserPage: function () {
                     let url = window.location.href;
-                    return url.match(tools.poipiku.regex.userUrl) != null;
+                    for (let i = 0; i < tools.poipiku.regex.userUrl.length; i++) {
+                        if (url.match(tools.poipiku.regex.userUrl[i]) != null) {
+                            return true;
+                        }
+                    }
+                    return false;
                 },
                 isDetailPage: function () {
                     let url = window.location.href;
@@ -372,6 +381,7 @@
                     if (this.isDetailPage()) {
                         $("#span_download").css("border", "2px solid " + color);
                     } else {
+                        $("#a_download").css("border", "2px solid " + color);
                         let itemList = $("a.IllustThumbImg");
                         for (let i = 0; i < itemList.length; i++) {
                             let item = $(itemList[i]);
@@ -427,6 +437,9 @@
                             for (let i = 0; i < imgs.length; i++) {
                                 // imgUrls[i] = $(imgs[i]).attr("src");
                                 imgUrls[i] = tools.poipiku.utils.tryGetImgUrlFromSmallUrl($(imgs[i]).attr("src"));
+                            }
+                            if (imgUrls.length <= 0) {
+                                tools.poipiku.utils.tagZeroImgItem(uid, iid);
                             }
                             onSuccess(imgUrls);
                         },
@@ -578,7 +591,7 @@
                                         tools.poipiku.downloadHelp.refreshDownLoadStatus();
                                         let downloadTask = tools.runtime.downloadTask;
                                         if (downloadTask.getDownloadedNum() >= downloadTask.waitDownloadList.length) {
-                                            downloadTask.showMsg("下载完成");
+                                            tools.runtime.downloadTask.showFinished();
                                         }
                                     };
                                     break;
@@ -610,7 +623,7 @@
 
                                                 let zipFileName = tools.commonUtils.format.string.byMap(setting.zipNameTemplate, info) + ".zip";
                                                 tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
-                                                tools.runtime.downloadTask.showMsg("下载完成");
+                                                tools.runtime.downloadTask.showFinished();
                                             });
                                         }
                                     };
@@ -745,7 +758,7 @@
                                 index++;
                             } while (index < list.length);
                             if (orgIndex === 0) {
-                                tools.runtime.downloadTask.showMsg("下载完成");
+                                tools.runtime.downloadTask.showFinished();
                             } else {
                                 tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index);
                             }
@@ -807,7 +820,7 @@
 
                                     let zipFileName = tools.commonUtils.format.string.byMap(tools.setting.zipNameTemplate, info) + ".zip";
                                     tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
-                                    tools.runtime.downloadTask.showMsg("下载完成");
+                                    tools.runtime.downloadTask.showFinished();
                                 });
                                 tools.runtime.downloadTask.zip = null;
                             } else {
