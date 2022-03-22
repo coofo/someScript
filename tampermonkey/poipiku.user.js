@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.0
+// @version      0.1.1
 // @license      AGPL License
 // @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
@@ -37,13 +37,22 @@
     setting.zipNameTemplate = "[poipiku][${userId}]${userName}[${id}]";
 
     /**
+     * 是否同步下载
+     * @type {boolean}
+     */
+    setting.sync = true;
+    /**
      * 下载模式
      * single：将图片文件单个下载（如果需要保存的文件有文件夹结构，则需要将tampermonkey下载模式调整为【浏览器API】）
      * zip：将图片打成zip包下载
      */
     setting.downloadMode = "zip";
 
-    setting.downloadRetryTimes = 3;
+    /**
+     * 下载失败重试次数
+     * @type {number}
+     */
+    setting.downloadRetryTimes = 2;
 
     //setting end
 
@@ -56,17 +65,14 @@
         //用户页面
         $("a.GiftBtn").after('<a class="BtnBase" id="a_download" style="margin-left: 5px;" href="javascript: void(0);">⬇下载</a>');
         $("#a_download").click(function () {
+            if (!tools.poipiku.utils.isLogin()) {
+                alert("请先登入");
+                return;
+            }
             if (tools.runtime.nowDownloading) return;
             tools.runtime.nowDownloading = true;
 
             let getImgUrlFunction = tools.poipiku.api.getOrgImgUrl;
-            if (!tools.poipiku.utils.isLogin()) {
-                if (confirm("当前未登入，可能无法下载原图，是否继续")) {
-                    getImgUrlFunction = tools.poipiku.api.getSmallImgUrl;
-                } else {
-                    return;
-                }
-            }
 
             let btn = $("#a_download");
             tools.runtime.downloadTask.showMsg = function (msg) {
@@ -93,6 +99,11 @@
         // span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;;padding: 0 10px 0 10px;flex: initial;" id="span_download">⬇下载</span>');
         span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;" id="span_download">⬇下载</span>');
         $("#span_download").click(function () {
+            let getImgUrlFunction = tools.poipiku.api.getOrgImgUrl;
+            if (!tools.poipiku.utils.isLogin()) {
+                alert("请先登入");
+                return;
+            }
             if (tools.runtime.nowDownloading) return;
             tools.runtime.nowDownloading = true;
 
@@ -101,14 +112,6 @@
             let match = url.match(tools.poipiku.regex.detailUrl);
             // console.log(match);
 
-            let getImgUrlFunction = tools.poipiku.api.getOrgImgUrl;
-            if (!tools.poipiku.utils.isLogin()) {
-                if (confirm("当前未登入，可能无法下载原图，是否继续")) {
-                    getImgUrlFunction = tools.poipiku.api.getSmallImgUrl;
-                } else {
-                    return;
-                }
-            }
 
             let btn = $("#span_download");
             tools.runtime.downloadTask.showMsg = function (msg) {
@@ -367,6 +370,7 @@
 
     tools.poipiku.api = {
         /**
+         * 如果当前作品第一张图是直接能看的，该接口的返回中不包括第一张图，该接口预定将不再使用
          * result_num 返回值统计
          *     成功返回                1
          *     sign in                 1
@@ -509,8 +513,11 @@
                 tools.runtime.downloadTask.showMsg("下载目标为0");
                 return;
             }
-            this.downloadService.async.exec();
-            // this.downloadService.sync.exec();
+            if (tools.setting.sync === false) {
+                this.downloadService.async.exec();
+            } else {
+                this.downloadService.sync.exec();
+            }
         },
         fileNameService: {
             getFileName: function (downloadItem) {
@@ -635,7 +642,7 @@
                                 console.error("超过重试限制");
                             }
                         }
-                    })
+                    });
                 }
             },
             sync: {
@@ -647,7 +654,8 @@
                             break;
                         case "zip":
                         default:
-                            this.downloadItemZip(0);
+                            let zip = new JSZip();
+                            this.downloadItemZip(0, zip);
                             break;
                     }
                 },
@@ -656,30 +664,115 @@
                     let list = tools.runtime.downloadTask.waitDownloadList;
                     if (index >= list.length) {
                         setTimeout((function () {
-                            this.downloadItemSingle(0);
-                        }), 2000);
+                            tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(0);
+                        }), 500);
+                        return;
+                    }
+                    do {
+                        let downloadItem = list[index];
+                        if (!downloadItem.complete) {
+                            if (downloadItem.lastRetryTimes > 0) {
+                                let url = tools.commonUtils.format.url.fullUrl(downloadItem.url);
+                                let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
+                                tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
+                                    gmDownload: {
+                                        saveAs: false,
+                                        onload: function () {
+                                            downloadItem.complete = true;
+                                            tools.poipiku.downloadHelp.refreshDownLoadStatus();
+                                            tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
+                                        },
+                                        onerror: function (e) {
+                                            console.error("GM_download error: " + url);
+                                            console.error(e);
+                                            downloadItem.lastRetryTimes--;
+                                            tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
+
+                                        },
+                                        ontimeout: function (e) {
+                                            console.error("GM_download timeout");
+                                            console.error(e);
+                                            downloadItem.lastRetryTimes--;
+                                            tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
+                                        }
+                                    }
+                                });
+                                return;
+                            } else {
+                                console.error("超过重试限制：" + downloadItem.url);
+                            }
+                        }
+
+                        index++;
+                    } while (index < list.length);
+                    if (orgIndex === 0) {
+                        tools.runtime.downloadTask.showMsg("下载完成");
+                    } else {
+                        tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index);
+                    }
+                },
+                downloadItemZip: function (index, zip) {
+                    let orgIndex = index;
+                    let list = tools.runtime.downloadTask.waitDownloadList;
+                    if (index >= list.length) {
+                        setTimeout((function () {
+                            tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(0, zip);
+                        }), 500);
                         return;
                     }
                     let downloadItem;
                     do {
-                        if (index >= list.length) {
-                            tools.runtime.downloadTask.showMsg("下载完成");
-                            return;
-                        }
-
                         downloadItem = list[index];
-
-                        if (downloadItem.lastRetryTimes > 0) {
-                            console.error("超过重试限制：" + downloadItem.url);
+                        if (!downloadItem.complete) {
+                            if (downloadItem.lastRetryTimes > 0) {
+                                let url = downloadItem.url;
+                                let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
+                                tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
+                                    if (responseDetails.status === 200) {
+                                        zip.file(fileName, responseDetails.response);
+                                        downloadItem.complete = true;
+                                        tools.poipiku.downloadHelp.refreshDownLoadStatus();
+                                        tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index + 1, zip);
+                                    } else {
+                                        console.error("download error: " + url);
+                                        console.error(responseDetails);
+                                        downloadItem.lastRetryTimes--;
+                                        tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index + 1, zip);
+                                    }
+                                });
+                                return;
+                            } else {
+                                console.error("超过重试限制：" + downloadItem.url);
+                            }
                         }
+
                         index++;
-                    } while (downloadItem.complete && downloadItem.lastRetryTimes > 0);
+                    } while (index < list.length);
+                    if (orgIndex === 0) {
 
+                        zip.generateAsync({type: "blob"}).then(function (content) {
+                            let map = downloadItem.info;
+                            let id = "";
+                            if (tools.poipiku.utils.isDetailPage()) {
+                                id = map.id;
+                            }
+                            let info = {
+                                userId: map.userId,
+                                userName: map.userName,
+                                id: id,
+                                page: "",
+                                page2: "",
+                                page3: "",
+                                page4: ""
+                            };
 
-                },
-                downloadItemZip: function (index) {
-                    let list = tools.runtime.downloadTask.waitDownloadList;
-
+                            let zipFileName = tools.commonUtils.format.string.byMap(tools.setting.zipNameTemplate, info) + ".zip";
+                            tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
+                            tools.runtime.downloadTask.showMsg("下载完成");
+                        });
+                    } else {
+                        tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index);
+                    }
                 }
             }
         },
