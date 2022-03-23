@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.1
+// @version      0.0.2
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -66,7 +66,11 @@
             btn.html(msg);
         };
         btn.click(function () {
-            let aList = $("ul#detail-list-select li a.chapteritem");
+            let aList;
+            aList = $("ul#adult-list-select li a.chapteritem");
+            if (aList.length <= 0) {
+                aList = $("ul#detail-list-select li a.chapteritem");
+            }
             for (let i = 0; i < aList.length; i++) {
                 let chapterId = $(aList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
                 tools.manwa.downloadHelp.addItem(chapterId);
