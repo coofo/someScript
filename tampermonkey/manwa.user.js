@@ -1,18 +1,16 @@
 // ==UserScript==
-// @name         poipiku图片下载
+// @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.4
+// @version      0.0.1
 // @license      AGPL License
-// @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
+// @description  下载
 // @author       coofo
-// @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/poipiku.user.js
+// @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
-// @include      /^https://poipiku\.com/\d+/\d+\.html/
-// @include      /^https://poipiku\.com/(\d+)(/?$|/?\?)/
-// @include      /^https://poipiku.com/IllustListPcV\.jsp\?.*ID=(\d+)/
+// @include      /^https://manwa.me/book/\d+/
+// @include      /^https://healthywawa.com/archives/\d+/
 // @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
-// @connect      img.poipiku.com
-// @connect      img-org.poipiku.com
+// @connect      img.manwa.me
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
@@ -24,20 +22,18 @@
     let setting = tools.setting;
     /**
      * 文件名格式（包括路径）
-     * ${userId}       用户ID
-     * ${userName}     用户名
-     * ${id}           插图ID
-     * ${page}         插图序号
-     * ${page2}        插图序号（2位）
-     * ${page3}        插图序号（3位）
-     * ${page4}        插图序号（4位）
+     * ${bookId}        漫画ID
+     * ${bookName}      漫画名
+     * ${chapterId}     章节ID
+     * ${chapterName}   章节名
+     * ${index}         插图序号
      */
-    setting.fileNameTemplate = "[poipiku]/[${userId}]${userName}/[${id}]-${page2}";
+    setting.fileNameTemplate = "[manwa]/[${bookId}]${bookName}/[${chapterId}]${chapterName}/${index}";
 
     /**
      * zip文件名格式（包括路径）
      */
-    setting.zipNameTemplate = "[poipiku][${userId}]${userName}[${id}]";
+    setting.zipNameTemplate = "[manwa][${bookId}]${bookName}";
 
     /**
      * 是否同步下载
@@ -59,79 +55,32 @@
 
     //setting end
 
-    console.log(GM_info.downloadMode);
+    console.log(GM_info.downloadMode)
 
-    const userName = $("h2.UserInfoUserName a").html();
-    tools.commonUtils.assert.hasLength(userName, "未获取到userName");
 
-    if (tools.poipiku.utils.isUserPage()) {
-        //用户页面
-        $("a.GiftBtn").after('<a class="BtnBase" id="a_download" style="margin-left: 5px;" href="javascript: void(0);">⬇下载</a>');
-        $("#a_download").click(function () {
-            if (!tools.poipiku.utils.isLogin()) {
-                alert("请先登入");
-                return;
+    if (tools.manwa.utils.isBookPage()) {
+        $("a.detail-bottom-btn").after('<a id="user_js_download" class="detail-bottom-btn">⬇下载</a>');
+
+        let btn = $("#user_js_download");
+        tools.runtime.downloadTask.showMsg = function (msg) {
+            btn.html(msg);
+        };
+        btn.click(function () {
+            let aList = $("ul#detail-list-select li a.chapteritem");
+            for (let i = 0; i < aList.length; i++) {
+                let chapterId = $(aList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
+                tools.manwa.downloadHelp.addItem(chapterId);
             }
-            if (tools.runtime.nowDownloading) return;
-            tools.runtime.nowDownloading = true;
-
-            let getImgUrlFunction = tools.poipiku.api.getOrgImgUrl;
-
-            let btn = $("#a_download");
-            tools.runtime.downloadTask.showMsg = function (msg) {
-                btn.html(msg);
-            };
-
-            tools.runtime.downloadTask.showMsg("分析页面");
-
-            let itemList = $("a.IllustThumbImg");
-            for (let i = 0; i < itemList.length; i++) {
-                let detailUrl = $(itemList[i]).attr("href");
-                let match = detailUrl.match(/\/(\d+)\/(\d+)\.html$/);
-                if (match === null) continue;
-                tools.poipiku.downloadHelp.addItem(match[1], match[2], userName);
-            }
-            tools.poipiku.downloadHelp.generateDownloadList(getImgUrlFunction, function () {
-                tools.poipiku.downloadHelp.doDownload();
-            });
+            tools.manwa.downloadHelp.generateDownloadList(function () {
+                tools.manwa.downloadHelp.doDownload();
+            })
         });
-
-    } else if (tools.poipiku.utils.isDetailPage()) {
-        //详情页面
-        let span = $('div.IllustItemUser span');
-        // span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;;padding: 0 10px 0 10px;flex: initial;" id="span_download">⬇下载</span>');
-        span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;flex: 0 0 0;padding: 0 13px" id="span_download">⬇下载</span>');
-        $("#span_download").click(function () {
-            let getImgUrlFunction = tools.poipiku.api.getOrgImgUrl;
-            if (!tools.poipiku.utils.isLogin()) {
-                alert("请先登入");
-                return;
-            }
-            if (tools.runtime.nowDownloading) return;
-            tools.runtime.nowDownloading = true;
-
-            setting.pass = $("input.IllustItemExpandPass").val();
-            let url = window.location.href;
-            let match = url.match(tools.poipiku.regex.detailUrl);
-            // console.log(match);
-
-
-            let btn = $("#span_download");
-            tools.runtime.downloadTask.showMsg = function (msg) {
-                btn.html(msg);
-            };
-            tools.runtime.downloadTask.showMsg("开始下载");
-            tools.poipiku.downloadHelp.addItem(match[1], match[2], userName);
-            tools.poipiku.downloadHelp.generateDownloadList(getImgUrlFunction, function () {
-                tools.poipiku.downloadHelp.doDownload();
-            });
-        });
-
-
-        // span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;"  id="span_download_test">⬇下载测试</span>');
-        // $("#span_download_test").click(function () {
-        // });
     }
+
+
+    // span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;"  id="span_download_test">⬇下载测试</span>');
+    // $("#span_download_test").click(function () {
+    // });
 
 
 })((function () {
@@ -166,6 +115,18 @@
                 },
                 showMsg: function (msg) {
                     console.log(msg);
+                },
+                refreshGenerateStatus: function () {
+                    let completeNum = tools.runtime.downloadTask.getGeneratedNum();
+                    let totalNum = tools.runtime.downloadTask.waitItemList.length;
+                    let percent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
+                    tools.runtime.downloadTask.showMsg("解析地址 " + percent);
+                },
+                refreshDownLoadStatus: function () {
+                    let completeNum = tools.runtime.downloadTask.getDownloadedNum();
+                    let totalNum = tools.runtime.downloadTask.waitDownloadList.length;
+                    let percent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
+                    tools.runtime.downloadTask.showMsg("下载 " + percent);
                 },
                 showFinished: function () {
                     this.showMsg("下载完成：" + tools.runtime.downloadTask.getDownloadedNum());
@@ -348,189 +309,68 @@
                 }
             },
         },
-        poipiku: {
+
+        manwa: {
             regex: {
-                userUrl: [/^https:\/\/poipiku\.com\/(\d+)(\/?$|\/?\?)/, /https:\/\/poipiku.com\/IllustListPcV\.jsp\?.*ID=(\d+)/],
-                detailUrl: /^https:\/\/poipiku\.com\/(\d+)\/(\d+)\.html/
+                bookUrl: /^https:\/\/manwa.me\/book\/(\d+)/,
+                archiveUrl: /^https:\/\/healthywawa.com\/archives\/(\d+)/,
+                dataUrl: /^https:\/\/manwa.me\/forInject\/(\d+).html/
             },
             utils: {
-                isLogin: function () {
-                    return $("a.LoginButton").length <= 0;
-                },
-                isUserPage: function () {
+                isBookPage: function () {
                     let url = window.location.href;
-                    for (let i = 0; i < tools.poipiku.regex.userUrl.length; i++) {
-                        if (url.match(tools.poipiku.regex.userUrl[i]) != null) {
-                            return true;
-                        }
-                    }
-                    return false;
+                    return url.match(tools.manwa.regex.bookUrl) != null;
                 },
-                isDetailPage: function () {
-                    let url = window.location.href;
-                    return url.match(tools.poipiku.regex.detailUrl) != null;
-                },
-                tryGetImgUrlFromSmallUrl: function (url) {
-                    let match = url.match(/^(.*)_\d+\.[0-9a-zA-Z]+$/);
-                    if (match === null) {
-                        return url;
-                    }
-                    return match[1];
-                },
-                tagImgItem: function (userId, id, color) {
-                    if (this.isDetailPage()) {
-                        $("#span_download").css("border", "2px solid " + color);
-                    } else {
-                        $("#a_download").css("border", "2px solid " + color);
-                        let itemList = $("a.IllustThumbImg");
-                        for (let i = 0; i < itemList.length; i++) {
-                            let item = $(itemList[i]);
-                            let match = item.attr("href").match(/\/(\d+)\/(\d+)\.html$/);
-                            // if (match === null || match[1] !== userId || match[2] !== id) continue;
-                            // item.css("border","4px solid red");
-                            if (match !== null && match[1] === userId && match[2] === id) {
-                                item.parent().css("border", "4px solid " + color);
-                                return;
-                            }
-                        }
-                    }
-                },
-                tagZeroImgItem: function (userId, id) {
-                    this.tagImgItem(userId, id, "red");
-                },
-                tagWarnImgItem: function (userId, id) {
-                    this.tagImgItem(userId, id, "orange");
-                }
             },
             api: {
-                /**
-                 * 如果当前作品第一张图是直接能看的，该接口的返回中不包括第一张图，该接口预定将不再使用
-                 * result_num 返回值统计
-                 *     成功返回                1
-                 *     sign in                 1
-                 *     follower                2
-                 *     需要密码但是密码错误    -2
-                 *     需要关注                -5
-                 *     需要关注                -6
-                 */
-                getSmallImgUrl: function (uid, iid, onSuccess, onError, onComplete) {
-                    let data = {
-                        UID: uid,
-                        IID: iid,
-                        PAS: tools.setting.pass,
-                        MD: 0,
-                        TWF: 1
-                    };
+                getImgUrl: function (chapterId, onSuccess, onError, onComplete) {
                     $.ajax({
-                        url: "/f/ShowAppendFileF.jsp",
-                        data: data,
-                        type: 'post',
-                        dataType: 'json',
-                        contentType: "application/x-www-form-urlencoded; charset=UTF-8",
+                        // url: "https://manwa.me/forInject/653939.html?f=fozcRotntz13bQBoXcsulA==",
+                        url: `https://manwa.me/forInject/${chapterId}.html`,
+                        type: 'get',
+                        contentType: "text/html; charset=utf-8",
                         success: function (request) {
                             // console.log(request);
 
                             let div = document.createElement("div");
-                            div.innerHTML = request.html;
+                            div.innerHTML = request;
                             let imgUrls = [];
-                            let imgs = $(div).find("img");
+                            let divSelector = $(div);
+                            let imgs = divSelector.find("div.view-main-1 img");
                             for (let i = 0; i < imgs.length; i++) {
-                                // imgUrls[i] = $(imgs[i]).attr("src");
-                                imgUrls[i] = tools.poipiku.utils.tryGetImgUrlFromSmallUrl($(imgs[i]).attr("src"));
+                                imgUrls[i] = $(imgs[i]).attr("data-original");
                             }
-                            if (imgUrls.length <= 0) {
-                                tools.poipiku.utils.tagZeroImgItem(uid, iid);
-                            }
-                            onSuccess(imgUrls);
+                            // if (imgUrls.length <= 0) {
+                            //     tools.manwa.utils.tagZeroImgItem(uid, iid);
+                            // }
+
+                            let info = {
+                                bookId: divSelector.find("div.view-fix-top-bar-right a").attr("href").match(tools.manwa.regex.bookUrl)[1],
+                                bookName: divSelector.find("div.view-fix-top-bar-center-right-book-name").html().trim(),
+                                chapterId: chapterId,
+                                chapterName: divSelector.find("div.view-fix-top-bar-center-right-chapter-name").html().trim(),
+                            };
+                            onSuccess(imgUrls, info);
                         },
                         error: onError,
                         complete: onComplete
                     });
                 },
-                /**
-                 * result 返回值统计
-                 *     成功返回                1
-                 *     sign in                 1
-                 *     需要密码但是密码错误    -3
-                 *     需要关注                -3
-                 * error_code
-                 *     需要关注                -3
-                 */
-                getOrgImgUrl: function (id, td, onSuccess, onError, onComplete) {
-                    let data = {
-                        ID: id,
-                        TD: td,
-                        AD: -1,
-                        PAS: tools.setting.pass
-                    };
-                    $.ajax({
-                        url: "/f/ShowIllustDetailF.jsp",
-                        data: data,
-                        type: 'post',
-                        dataType: 'json',
-                        contentType: "application/x-www-form-urlencoded; charset=UTF-8",
-                        success: function (request) {
-                            if (request.error_code === -3) {
-                                tools.poipiku.utils.tagWarnImgItem(id, td);
-                                tools.poipiku.api.getSmallImgUrl(id, td, onSuccess, onError, onComplete)
-                            } else {
-                                // console.log(request);
-                                let div = document.createElement("div");
-                                div.id = "temp";
-                                document.body.appendChild(div);
-                                div.innerHTML = request.html;
-                                let imgs = $("#temp img");
-                                // console.log(imgs);
-                                let imgUrls = [];
-                                for (let i = 0; i < imgs.length; i++) {
-                                    imgUrls[i] = $(imgs[i]).attr("src");
-                                }
-                                if (imgUrls.length <= 0) {
-                                    tools.poipiku.utils.tagZeroImgItem(id, td);
-                                }
-                                document.body.removeChild(div);
-
-                                onSuccess(imgUrls);
-                            }
-                        },
-                        error: onError,
-                        complete: onComplete
-                    });
-                }
             },
             downloadHelp: {
-                refreshDownLoadStatus: function () {
-                    let completeNum = tools.runtime.downloadTask.getDownloadedNum();
-                    let totalNum = tools.runtime.downloadTask.waitDownloadList.length;
-                    let percent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
-                    tools.runtime.downloadTask.showMsg("下载 " + percent);
-                },
-                addItem: function (userId, id, userName) {
+                addItem: function (chapterId) {
                     tools.runtime.downloadTask.waitItemList.push({
-                        userId: userId,
-                        id: id,
-                        userName: userName,
+                        chapterId: chapterId,
                         complete: false
                     });
                 },
-                addDownloadList: function (url, info) {
-                    tools.runtime.downloadTask.waitDownloadList.push({
-                        url: url,
-                        info: info,
-                        complete: false,
-                        lastRetryTimes: tools.setting.downloadRetryTimes
-                    });
-                },
-                generateDownloadList: function (getImgUrlFunction, onFinish) {
+                generateDownloadList: function (onFinish) {
                     tools.runtime.downloadTask.showMsg("解析地址 0%");
                     let list = tools.runtime.downloadTask.waitItemList;
                     for (let i = 0; i < list.length; i++) {
-                        getImgUrlFunction(list[i].userId, list[i].id, function (imgUrls) {
+                        tools.manwa.api.getImgUrl(list[i].chapterId, function (imgUrls, info) {
                             list[i].complete = true;
-                            let completeNum = tools.runtime.downloadTask.getGeneratedNum();
-                            let totalNum = tools.runtime.downloadTask.waitItemList.length;
-                            let persent = tools.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, 0) + "%";
-                            tools.runtime.downloadTask.showMsg("解析地址 " + persent);
+                            tools.runtime.downloadTask.refreshGenerateStatus();
 
                             for (let j = 0; j < imgUrls.length; j++) {
                                 let imgUrl = imgUrls[j];
@@ -539,25 +379,30 @@
                                     suffix = "." + suffix;
                                 }
                                 let index = j + 1;
-                                let map = {
-                                    userId: list[i].userId,
-                                    userName: list[i].userName,
-                                    id: list[i].id,
-                                    page: "" + index,
-                                    page2: tools.commonUtils.format.num.fullNum(index, 2),
-                                    page3: tools.commonUtils.format.num.fullNum(index, 3),
-                                    page4: tools.commonUtils.format.num.fullNum(index, 4),
+                                let infoEx = {
+                                    bookId: info.bookId,
+                                    bookName: info.bookName,
+                                    chapterId: info.chapterId,
+                                    chapterName: info.chapterName,
+                                    index: tools.commonUtils.format.num.fullNum(index, 3),
                                     suffix: suffix
-
                                 };
-                                tools.poipiku.downloadHelp.addDownloadList(imgUrl, map)
+                                tools.manwa.downloadHelp.addDownloadList(imgUrl, infoEx)
                             }
 
-                            if (completeNum >= totalNum) {
+                            if (tools.runtime.downloadTask.getGeneratedNum() >= tools.runtime.downloadTask.waitItemList.length) {
                                 onFinish();
                             }
                         });
                     }
+                },
+                addDownloadList: function (url, info) {
+                    tools.runtime.downloadTask.waitDownloadList.push({
+                        url: url,
+                        info: info,
+                        complete: false,
+                        lastRetryTimes: tools.setting.downloadRetryTimes
+                    });
                 },
                 doDownload: function () {
                     let list = tools.runtime.downloadTask.waitDownloadList;
@@ -578,6 +423,9 @@
                         return tools.commonUtils.format.string.byMap(setting.fileNameTemplate, map) + map.suffix;
                     }
                 },
+
+
+                //-----------------------------------------
                 downloadService: {
                     async: {
                         exec: function () {
@@ -588,7 +436,7 @@
                                 case "single":
                                     downloadFunction = this.downloadItemSingle;
                                     onSuccess = function () {
-                                        tools.poipiku.downloadHelp.refreshDownLoadStatus();
+                                        tools.runtime.downloadTask.refreshDownLoadStatus();
                                         let downloadTask = tools.runtime.downloadTask;
                                         if (downloadTask.getDownloadedNum() >= downloadTask.waitDownloadList.length) {
                                             tools.runtime.downloadTask.showFinished();
@@ -602,24 +450,21 @@
                                     onSuccess = function (fileName, arrayBuffer, map) {
                                         zip.file(fileName, arrayBuffer);
 
-                                        tools.poipiku.downloadHelp.refreshDownLoadStatus();
+                                        tools.runtime.downloadTask.refreshDownLoadStatus();
                                         let downloadTask = tools.runtime.downloadTask;
                                         if (downloadTask.getDownloadedNum() >= downloadTask.waitDownloadList.length) {
                                             zip.generateAsync({type: "blob"}).then(function (content) {
 
-                                                let id = "";
-                                                if (tools.poipiku.utils.isDetailPage()) {
-                                                    id = map.id;
-                                                }
                                                 let info = {
-                                                    userId: map.userId,
-                                                    userName: map.userName,
-                                                    id: id,
-                                                    page: "",
-                                                    page2: "",
-                                                    page3: "",
-                                                    page4: ""
+                                                    bookId: map.bookId,
+                                                    bookName: map.bookName,
+                                                    chapterId: "",
+                                                    chapterName: "",
+                                                    index: ""
                                                 };
+                                                // if (tools.manwa.utils.isDetailPage()) {
+                                                //     id = map.id;
+                                                // }
 
                                                 let zipFileName = tools.commonUtils.format.string.byMap(setting.zipNameTemplate, info) + ".zip";
                                                 tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
@@ -638,7 +483,7 @@
                         },
                         downloadItemSingle(downloadItem, onSuccess) {
                             let url = tools.commonUtils.format.url.fullUrl(downloadItem.url);
-                            let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
+                            let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(downloadItem);
                             tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
                                 gmDownload: {
                                     saveAs: false,
@@ -652,7 +497,7 @@
                                         if (downloadItem.lastRetryTimes > 0) {
                                             setTimeout((function () {
                                                 downloadItem.lastRetryTimes--;
-                                                tools.poipiku.downloadHelp.downloadService.async.downloadItemSingle(downloadItem, onSuccess);
+                                                tools.manwa.downloadHelp.downloadService.async.downloadItemSingle(downloadItem, onSuccess);
                                             }), 2000)
                                         } else {
                                             console.error("超过重试限制");
@@ -665,7 +510,7 @@
                                         if (downloadItem.lastRetryTimes > 0) {
                                             setTimeout((function () {
                                                 downloadItem.lastRetryTimes--;
-                                                tools.poipiku.downloadHelp.downloadService.async.downloadItemSingle(downloadItem, onSuccess);
+                                                tools.manwa.downloadHelp.downloadService.async.downloadItemSingle(downloadItem, onSuccess);
                                             }), 2000)
                                         } else {
                                             console.error("超过重试限制");
@@ -677,7 +522,7 @@
                         downloadItemZip(downloadItem, onSuccess) {
                             let map = downloadItem.info;
                             let url = downloadItem.url;
-                            let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
+                            let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(downloadItem);
                             tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
                                 if (responseDetails.status === 200) {
                                     downloadItem.complete = true;
@@ -688,7 +533,7 @@
                                     if (downloadItem.lastRetryTimes > 0) {
                                         setTimeout((function () {
                                             downloadItem.lastRetryTimes--;
-                                            tools.poipiku.downloadHelp.downloadService.async.downloadItemZip(downloadItem, onSuccess);
+                                            tools.manwa.downloadHelp.downloadService.async.downloadItemZip(downloadItem, onSuccess);
                                         }), 2000)
                                     } else {
                                         console.error("超过重试限制");
@@ -716,7 +561,7 @@
                             let list = tools.runtime.downloadTask.waitDownloadList;
                             if (index >= list.length) {
                                 setTimeout((function () {
-                                    tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(0);
+                                    tools.manwa.downloadHelp.downloadService.sync.downloadItemSingle(0);
                                 }), 500);
                                 return;
                             }
@@ -725,27 +570,27 @@
                                 if (!downloadItem.complete) {
                                     if (downloadItem.lastRetryTimes > 0) {
                                         let url = tools.commonUtils.format.url.fullUrl(downloadItem.url);
-                                        let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
+                                        let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(downloadItem);
                                         tools.commonUtils.downloadHelp.toUser.asGMdownload(url, fileName, {
                                             gmDownload: {
                                                 saveAs: false,
                                                 onload: function () {
                                                     downloadItem.complete = true;
-                                                    tools.poipiku.downloadHelp.refreshDownLoadStatus();
-                                                    tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
+                                                    tools.runtime.downloadTask.refreshDownLoadStatus();
+                                                    tools.manwa.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
                                                 },
                                                 onerror: function (e) {
                                                     console.error("GM_download error: " + url);
                                                     console.error(e);
                                                     downloadItem.lastRetryTimes--;
-                                                    tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
+                                                    tools.manwa.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
 
                                                 },
                                                 ontimeout: function (e) {
                                                     console.error("GM_download timeout");
                                                     console.error(e);
                                                     downloadItem.lastRetryTimes--;
-                                                    tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
+                                                    tools.manwa.downloadHelp.downloadService.sync.downloadItemSingle(index + 1);
                                                 }
                                             }
                                         });
@@ -760,7 +605,7 @@
                             if (orgIndex === 0) {
                                 tools.runtime.downloadTask.showFinished();
                             } else {
-                                tools.poipiku.downloadHelp.downloadService.sync.downloadItemSingle(index);
+                                tools.manwa.downloadHelp.downloadService.sync.downloadItemSingle(index);
                             }
                         },
                         downloadItemZip: function (index) {
@@ -768,7 +613,7 @@
                             let list = tools.runtime.downloadTask.waitDownloadList;
                             if (index >= list.length) {
                                 setTimeout((function () {
-                                    tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(0);
+                                    tools.manwa.downloadHelp.downloadService.sync.downloadItemZip(0);
                                 }), 500);
                                 return;
                             }
@@ -778,18 +623,18 @@
                                 if (!downloadItem.complete) {
                                     if (downloadItem.lastRetryTimes > 0) {
                                         let url = downloadItem.url;
-                                        let fileName = tools.poipiku.downloadHelp.fileNameService.getFileName(downloadItem);
+                                        let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(downloadItem);
                                         tools.commonUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
                                             if (responseDetails.status === 200) {
                                                 tools.runtime.downloadTask.zip.file(fileName, responseDetails.response);
                                                 downloadItem.complete = true;
-                                                tools.poipiku.downloadHelp.refreshDownLoadStatus();
-                                                tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index + 1);
+                                                tools.runtime.downloadTask.refreshDownLoadStatus();
+                                                tools.manwa.downloadHelp.downloadService.sync.downloadItemZip(index + 1);
                                             } else {
                                                 console.error("download error: " + url);
                                                 console.error(responseDetails);
                                                 downloadItem.lastRetryTimes--;
-                                                tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index + 1);
+                                                tools.manwa.downloadHelp.downloadService.sync.downloadItemZip(index + 1);
                                             }
                                         });
                                         return;
@@ -804,19 +649,18 @@
 
                                 tools.runtime.downloadTask.zip.generateAsync({type: "blob"}).then(function (content) {
                                     let map = downloadItem.info;
-                                    let id = "";
-                                    if (tools.poipiku.utils.isDetailPage()) {
-                                        id = map.id;
-                                    }
+
                                     let info = {
-                                        userId: map.userId,
-                                        userName: map.userName,
-                                        id: id,
-                                        page: "",
-                                        page2: "",
-                                        page3: "",
-                                        page4: ""
+                                        bookId: map.bookId,
+                                        bookName: map.bookName,
+                                        chapterId: "",
+                                        chapterName: "",
+                                        index: ""
                                     };
+
+                                    // if (tools.poipiku.utils.isDetailPage()) {
+                                    //     id = map.id;
+                                    // }
 
                                     let zipFileName = tools.commonUtils.format.string.byMap(tools.setting.zipNameTemplate, info) + ".zip";
                                     tools.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
@@ -824,13 +668,14 @@
                                 });
                                 tools.runtime.downloadTask.zip = null;
                             } else {
-                                tools.poipiku.downloadHelp.downloadService.sync.downloadItemZip(index);
+                                tools.manwa.downloadHelp.downloadService.sync.downloadItemZip(index);
                             }
                         }
                     }
                 },
             }
-        }
+        },
+
     };
 
     return tools;
