@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.2
+// @version      0.0.3
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -247,11 +247,11 @@
                                     if (taskItem.complete === false && taskItem.lastRetryTimes > 0) {
                                         if (taskItem.handler == null) {
                                             taskItem.handler = handler;
-                                            taskItem.exec(function () {
-                                                setTimeout(function () {
+                                            setTimeout(function () {
+                                                taskItem.exec(function () {
                                                     task.api.exec(handler);
-                                                }, 0);
-                                            });
+                                                });
+                                            }, 0);
                                             return;
                                         } else {
                                             allFinished = false;

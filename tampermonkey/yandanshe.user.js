@@ -1,16 +1,16 @@
 // ==UserScript==
-// @name         manwa图片下载
+// @name         yandanshe图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.4
+// @version      0.0.3
 // @license      AGPL License
 // @description  下载
 // @author       coofo
-// @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
+// @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/yandanshe.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
-// @include      /^https://manwa.me/book/\d+/
+// @include      /^https://yandanshe.com/\d+/
 // @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1031698
-// @connect      img.manwa.me
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1031855
+// @connect      i.yandanshe.com
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
@@ -24,17 +24,15 @@
      * 文件名格式（包括路径）
      * ${bookId}        漫画ID
      * ${bookName}      漫画名
-     * ${selectType}    water/adult
      * ${chapterId}     章节ID
-     * ${chapterName}   章节名
      * ${index}         插图序号
      */
-    setting.fileNameTemplate = "[manwa]/[${bookId}][${author}]${bookName}(${selectType})/[${chapterId}]${chapterName}/${index}";
+    setting.fileNameTemplate = "[yandanshe]/[${bookId}][${author}]${bookName}/${chapterId}/${index}";
 
     /**
      * zip文件名格式（包括路径）
      */
-    setting.zipNameTemplate = "[manwa][${bookId}][${author}]${bookName}";
+    setting.zipNameTemplate = "[yandanshe][${bookId}][${author}]${bookName}";
 
     /**
      * 下载线程数量
@@ -54,12 +52,6 @@
      */
     setting.downloadRetryTimes = 2;
 
-    /**
-     * all：我全都要
-     * water：清水优先
-     * adult：完整优先
-     */
-    setting.selectType = "all";
 
     //setting end
 
@@ -67,14 +59,16 @@
 
     //首页基础信息
     let url = window.location.href;
-    let urlMatch = url.match(tools.manwa.regex.bookUrl);
+    let urlMatch = url.match(tools.yandanshe.regex.bookUrl);
+    let postMeta = $("div.post-meta");
     let baseInfo = {
         bookId: urlMatch[1],
-        bookName: $("div.detail-main p.detail-main-info-title").html(),
-        author: $("p.detail-main-info-author a.detail-main-info-value").html()
+        bookName: $("h1.post-title").html(),
+        author: postMeta.children("a").first().html()
     };
+    console.log(baseInfo);
 
-    $("a.detail-bottom-btn").after('<a id="user_js_download" class="detail-bottom-btn">⬇下载</a>');
+    postMeta.after('<a href="javascript::" class="btn btn-primary btn-sm btn-rounded" id="user_js_download">⬇下载</a>');
 
     let btn = $("#user_js_download");
     tools.runtime.downloadTask.showMsg = function (msg) {
@@ -89,52 +83,28 @@
             tools.runtime.downloadTask.zip = new JSZip();
         }
 
-        let adultList = $("ul#adult-list-select li a.chapteritem");
-        let waterList = $("ul#detail-list-select li a.chapteritem");
         let generateTask = coofoUtils.service.task.create();
         let downloadTask = coofoUtils.service.task.create();
         tools.runtime.downloadTask.generateTask = generateTask;
         tools.runtime.downloadTask.downloadTask = downloadTask;
 
-        if (setting.selectType === "all" || setting.selectType === "adult" || waterList.length <= 0) {
-            //完整
-            let baseAdultInfo = Object.assign({
-                selectType: "adult",
-                downloadTask: downloadTask,
+        //处理当前页
+        let urlList = [url];
+
+        $("a.post-page-numbers").each(function (index, element) {
+            urlList.push(element.href);
+        });
+        for (let i = 0; i < urlList.length; i++) {
+            let info = Object.assign({
+                chapterUrl: urlList[i],
+                downloadTask: downloadTask
             }, baseInfo);
-
-            for (let i = 0; i < adultList.length; i++) {
-                let chapterId = $(adultList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
-
-                let info = Object.assign({
-                    chapterId: chapterId
-                }, baseAdultInfo);
-
-                generateTask.api.addTask(tools.manwa.downloadHelp.generateTask, info, setting.downloadRetryTimes);
-            }
+            generateTask.api.addTask(tools.yandanshe.downloadHelp.generateTask, info, setting.downloadRetryTimes);
         }
-
-        if (setting.selectType === "all" || setting.selectType === "water" || adultList.length <= 0) {
-            //清水
-            let baseWaterInfo = Object.assign({
-                selectType: "water",
-                downloadTask: downloadTask,
-            }, baseInfo);
-            for (let i = 0; i < waterList.length; i++) {
-                let chapterId = $(waterList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
-
-                let info = Object.assign({
-                    chapterId: chapterId
-                }, baseWaterInfo);
-
-                generateTask.api.addTask(tools.manwa.downloadHelp.generateTask, info, setting.downloadRetryTimes);
-            }
-        }
-
 
         generateTask.runtime.callBack = function () {
             let list = generateTask.runtime.taskList;
-            if (list.length <= 0) {
+            if (list.length <= 0 && downloadTask.runtime.taskList.length <= 0) {
                 tools.runtime.downloadTask.showMsg("下载目标为0");
                 return;
             }
@@ -152,14 +122,16 @@
                         coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
                         tools.runtime.downloadTask.showFinished();
                     });
+                } else {
+                    tools.runtime.downloadTask.showFinished();
                 }
-                tools.runtime.downloadTask.showMsg("下载完成：" + completeNum);
             };
 
             for (let i = 0; i < setting.threadNum; i++) {
                 downloadTask.api.exec(i);
             }
         };
+
         for (let i = 0; i < setting.threadNum; i++) {
             generateTask.api.exec(i);
         }
@@ -216,11 +188,11 @@
                     let completeNum = tools.runtime.downloadTask.getGeneratedNum();
                     let totalNum = tools.runtime.downloadTask.generateTask.runtime.taskList.length;
                     let digitNum;
-                    if(totalNum > 1000){
+                    if (totalNum > 1000) {
                         digitNum = 2;
-                    }else if(totalNum > 100){
+                    } else if (totalNum > 100) {
                         digitNum = 1;
-                    }else {
+                    } else {
                         digitNum = 0;
                     }
                     let percent = coofoUtils.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, digitNum) + "%";
@@ -230,11 +202,11 @@
                     let completeNum = tools.runtime.downloadTask.getDownloadedNum();
                     let totalNum = tools.runtime.downloadTask.downloadTask.runtime.taskList.length;
                     let digitNum;
-                    if(totalNum > 1000){
+                    if (totalNum > 1000) {
                         digitNum = 2;
-                    }else if(totalNum > 100){
+                    } else if (totalNum > 100) {
                         digitNum = 1;
-                    }else {
+                    } else {
                         digitNum = 0;
                     }
                     let percent = coofoUtils.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, digitNum) + "%";
@@ -248,24 +220,26 @@
             }
         },
 
-
-        manwa: {
+        yandanshe: {
             regex: {
-                bookUrl: /^https:\/\/manwa.me\/book\/(\d+)/,
-                archiveUrl: /^https:\/\/healthywawa.com\/archives\/(\d+)/,
-                dataUrl: /^https:\/\/manwa.me\/forInject\/(\d+).html/
+                bookUrl: /^https:\/\/yandanshe.com\/(\d+)/,
+                // archiveUrl: /^https:\/\/healthywawa.com\/archives\/(\d+)/,
+                // dataUrl: /^https:\/\/manwa.me\/forInject\/(\d+).html/
             },
-            utils: {
-                isBookPage: function () {
-                    let url = window.location.href;
-                    return url.match(tools.manwa.regex.bookUrl) != null;
-                },
+            html: {
+                getImgUrls: function (selected) {
+                    let urlList = [];
+                    selected.find("div.post-content img.aligncenter").each(function (index, element) {
+                        urlList.push(element.dataset.src);
+                    });
+                    let chapterId = selected.find("span.current").html();
+                    return {urlList, chapterId};
+                }
             },
             api: {
-                getImgUrl: function (chapterId, onSuccess, onError, onComplete) {
+                getImgUrl: function (chapterUrl, onSuccess, onError, onComplete) {
                     $.ajax({
-                        // url: "https://manwa.me/forInject/653939.html?f=fozcRotntz13bQBoXcsulA==",
-                        url: `https://manwa.me/forInject/${chapterId}.html`,
+                        url: chapterUrl,
                         type: 'get',
                         contentType: "text/html; charset=utf-8",
                         success: function (request) {
@@ -273,21 +247,11 @@
 
                             let div = document.createElement("div");
                             div.innerHTML = request;
-                            let imgUrls = [];
-                            let divSelector = $(div);
-                            let imgs = divSelector.find("div.view-main-1 img");
-                            for (let i = 0; i < imgs.length; i++) {
-                                imgUrls[i] = $(imgs[i]).attr("data-original");
-                            }
-                            // if (imgUrls.length <= 0) {
-                            //     tools.manwa.utils.tagZeroImgItem(uid, iid);
-                            // }
+                            let htmlInfo = tools.yandanshe.html.getImgUrls($(div));
+                            let imgUrls = htmlInfo.urlList;
 
                             let info = {
-                                // bookId: divSelector.find("div.view-fix-top-bar-right a").attr("href").match(tools.manwa.regex.bookUrl)[1],
-                                // bookName: divSelector.find("div.view-fix-top-bar-center-right-book-name").html().trim(),
-                                chapterId: chapterId,
-                                chapterName: divSelector.find("div.view-fix-top-bar-center-right-chapter-name").html().trim(),
+                                chapterId: coofoUtils.commonUtils.format.num.fullNum(htmlInfo.chapterId, 3),
                             };
                             onSuccess(imgUrls, info);
                         },
@@ -298,7 +262,7 @@
             },
             downloadHelp: {
                 generateTask: function (taskInfo, taskItem) {
-                    tools.manwa.api.getImgUrl(taskInfo.chapterId, function (imgUrls, info) {
+                    tools.yandanshe.api.getImgUrl(taskInfo.chapterUrl, function (imgUrls, info) {
 
                         for (let j = 0; j < imgUrls.length; j++) {
                             let imgUrl = imgUrls[j];
@@ -316,9 +280,9 @@
 
                             let downloadFunction;
                             if (tools.setting.downloadMode === "single") {
-                                downloadFunction = tools.manwa.downloadHelp.singleDownloadTask;
+                                downloadFunction = tools.yandanshe.downloadHelp.singleDownloadTask;
                             } else {
-                                downloadFunction = tools.manwa.downloadHelp.zipDownloadTask;
+                                downloadFunction = tools.yandanshe.downloadHelp.zipDownloadTask;
                             }
                             taskInfo.downloadTask.api.addTask(downloadFunction, infoEx, tools.setting.downloadRetryTimes);
                         }
@@ -331,7 +295,7 @@
                 },
                 singleDownloadTask: function (taskInfo, taskItem) {
                     let url = coofoUtils.commonUtils.format.url.fullUrl(taskInfo.imgUrl);
-                    let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(taskInfo);
+                    let fileName = tools.yandanshe.downloadHelp.fileNameService.getFileName(taskInfo);
                     coofoUtils.tampermonkeyUtils.downloadHelp.toUser.asGMdownload(taskInfo.imgUrl, fileName, {
                         gmDownload: {
                             saveAs: false,
@@ -354,7 +318,7 @@
                 },
                 zipDownloadTask: function (taskInfo, taskItem) {
                     let url = coofoUtils.commonUtils.format.url.fullUrl(taskInfo.imgUrl);
-                    let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(taskInfo);
+                    let fileName = tools.yandanshe.downloadHelp.fileNameService.getFileName(taskInfo);
                     coofoUtils.tampermonkeyUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
                         if (responseDetails.status === 200) {
                             tools.runtime.downloadTask.zip.file(fileName, responseDetails.response);
