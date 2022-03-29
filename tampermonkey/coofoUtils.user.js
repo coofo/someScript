@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.3
+// @version      0.0.4
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -40,6 +40,15 @@
                             return tr === "" ? r : r + "." + tr;
                         }
                         return value;
+                    },
+                    percentAutoDigitNum: function (num, total, maxDigitNum) {
+                        let standard = 100;
+                        let digitNum = 0;
+                        while (standard > total && maxDigitNum < digitNum) {
+                            standard *= 10;
+                            digitNum++;
+                        }
+                        return this.toThousands(num / total * 100, null, digitNum) + "%";
                     }
                 },
                 file: {
@@ -258,7 +267,11 @@
                                         }
                                     }
                                 }
-                                if (allFinished) task.runtime.callBack();
+                                if (allFinished) {
+                                    setTimeout(function () {
+                                        task.runtime.callBack();
+                                    }, 0);
+                                }
                             },
 
                         }

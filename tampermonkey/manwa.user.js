@@ -153,7 +153,7 @@
                         tools.runtime.downloadTask.showFinished();
                     });
                 }
-                tools.runtime.downloadTask.showMsg("下载完成：" + completeNum);
+                tools.runtime.downloadTask.showFinished();
             };
 
             for (let i = 0; i < setting.threadNum; i++) {
