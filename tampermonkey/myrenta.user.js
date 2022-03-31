@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.1
+// @version      0.0.2
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -21,16 +21,16 @@
     let setting = tools.setting;
     /**
      * 文件名格式（包括路径）
-     * ${prdId}        漫画ID
+     * ${itemId}       漫画ID
      * ${title}        漫画名
      * ${index}        插图序号
      */
-    setting.fileNameTemplate = "[myrenta]/[${prdId}]${title}/${index}";
+    setting.fileNameTemplate = "[myrenta]/[${itemId}]${title}/${index}";
 
     /**
      * zip文件名格式（包括路径）
      */
-    setting.zipNameTemplate = "[myrenta][${prdId}]${title}";
+    setting.zipNameTemplate = "[myrenta][${itemId}]${title}";
 
     /**
      * 下载线程数量
@@ -46,8 +46,12 @@
 
     //setting end
 
+    let url = window.location.href;
+    let urlMatch = url.match(tools.myrenta.regex.bookDetailUrl);
+
     let baseInfo = {
-        title: $("p.title span").html()
+        title: $("p.title span").html(),
+        itemId: urlMatch[3]
     };
 
     //添加按钮
@@ -63,9 +67,6 @@
         tools.runtime.nowDownloading = true;
 
         tools.runtime.downloadTask.zip = new JSZip();
-
-        let url = window.location.href;
-        let urlMatch = url.match(tools.myrenta.regex.bookDetailUrl);
 
         let generateTask = coofoUtils.service.task.create();
         let downloadTask = coofoUtils.service.task.create();
@@ -187,7 +188,7 @@
         },
         myrenta: {
             regex: {
-                bookDetailUrl: new RegExp("^https://reader.myrenta.com/viewer/sc/viewer_aws/([0-9a-z]+)/([0-9-]+)/type_[0-9]/index.html$")
+                bookDetailUrl: new RegExp("^https://reader.myrenta.com/viewer/sc/viewer_aws/([0-9a-z]+)/([0-9]+-([0-9]+)-[0-9]+)/type_[0-9]/index.html$")
             },
             utils: {
                 imgDecode: function (imgSource, key) {

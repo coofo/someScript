@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.4
+// @version      0.0.5
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -241,12 +241,12 @@
                             exec: function (handler) {
                                 let taskList = task.runtime.taskList;
                                 //判断该执行器是否有未完任务，并指定为失败
-                                for (let i = 0; i < taskList.length; i++) {
-                                    let taskItem = taskList[i];
-                                    if (taskItem.handler === handler) {
-                                        taskItem.failed();
-                                    }
-                                }
+                                // for (let i = 0; i < taskList.length; i++) {
+                                //     let taskItem = taskList[i];
+                                //     if (taskItem.handler === handler) {
+                                //         taskItem.failed();
+                                //     }
+                                // }
 
                                 //寻找新任务并标记返回
                                 let allFinished = true;
@@ -269,11 +269,12 @@
                                 }
                                 if (allFinished) {
                                     setTimeout(function () {
-                                        task.runtime.callBack();
+                                        if (typeof task.runtime.callBack === 'function') {
+                                            task.runtime.callBack();
+                                        }
                                     }, 0);
                                 }
                             },
-
                         }
                     };
                     return task;
