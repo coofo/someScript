@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.2
+// @version      0.0.3
 // @license      AGPL License
 // @description  下载
 // @author       coofo
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/myrenta.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
-// @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_\d/index.html$/
+// @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html$/
 // @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1031855
 // @connect      myrenta-books.*
@@ -55,7 +55,12 @@
     };
 
     //添加按钮
-    $("div.btnBox").after('<div class="btnBox"><a href="javascript:;" id="user_js_download" style="width: auto;padding: 0 10px 0 10px;background-size: 100% 100%;">⬇下载</a></div>');
+    if (urlMatch[4] === "6") {
+        $("div.btnBox").after('<div class="btnBox"><a href="javascript:;" id="user_js_download" style="width: auto;padding: 0 10px 0 10px;background-size: 100% 100%;">⬇下载</a></div>');
+    } else {
+        $("a.chapter-prev").after(`<a id="user_js_download" class="chapter-btn" href="javascript:;">⬇下载</a>`);
+    }
+
 
     let btn = $("#user_js_download");
     tools.runtime.downloadTask.showMsg = function (msg) {
@@ -188,7 +193,7 @@
         },
         myrenta: {
             regex: {
-                bookDetailUrl: new RegExp("^https://reader.myrenta.com/viewer/sc/viewer_aws/([0-9a-z]+)/([0-9]+-([0-9]+)-[0-9]+)/type_[0-9]/index.html$")
+                bookDetailUrl: new RegExp("^https://reader.myrenta.com/viewer/sc/viewer_aws/([0-9a-z]+)/([0-9]+-([0-9]+)-[0-9]+)/type_(6|10)/index.html$")
             },
             utils: {
                 imgDecode: function (imgSource, key) {

@@ -2,33 +2,137 @@
 <html>
 <head>
 </head>
-<body style="text-align: center;line-height: 0;">
+<body>
+<div id="div-setting">
+    <button id="but-start">开始</button>
+</div>
+<div id="div-img" style="text-align: center;">
+
+</div>
 </body>
 </html>
 <script>
-    let fullNum = function (num, length) {
-        if (("" + num).length > length) {
-            throw "overflow";
+    let setting = {
+        startIndex: 1,
+        nameLength: 0,
+        suffix: 'jpg',
+        showType: 'straight',
+        coverNum: 0,
+        left2right: true,
+        autoStart: false
+    };
+
+
+    (function (tools) {
+        if (setting.autoStart) {
+            tools.reader.start(setting);
+        } else {
+            document.getElementById('but-start').onclick = function () {
+                tools.reader.start(setting);
+            };
         }
-        return (Array(length).join('0') + num).slice(-length);
-    };
+    })((function () {
+        let tools = {
+            commonUtils: {
+                fullNum: function (num, length) {
+                    if (length <= 0) {
+                        return num;
+                    } else if (("" + num).length > length) {
+                        throw "overflow";
+                    }
+                    return (Array(length).join('0') + num).slice(-length);
+                }
+            },
+            reader: {
+                start: function (setting) {
+                    let divSetting = document.getElementById("div-setting");
+                    divSetting.hidden = true;
 
-    let addImg = function (i) {
-        let div = document.createElement("div");
-        let img = document.createElement("img");
-        img.src = fullNum(i, 3) + ".webp";
-        img.style = "max-width: 100%;";
-        div.appendChild(img);
-        document.body.appendChild(div);
+                    if (typeof setting.getIndexStr !== 'function') {
+                        setting.getIndexStr = index => tools.commonUtils.fullNum(index, setting.nameLength);
+                    }
 
-        setTimeout(function () {
-            if (img.naturalWidth > 0) {
-                addImg(i + 1);
-            } else {
-                div.removeChild(img);
-                document.body.removeChild(div);
+                    setting.div = document.getElementById('div-img');
+                    if(setting.showType === 'straight'){
+                        setting.div.style.lineHeight = "0";
+                    }else{
+                        setting.div.style.lineHeight = "10";
+                    }
+
+                    let showFunction = tools.reader.show[setting.showType];
+                    showFunction(setting.startIndex, setting);
+                },
+                show: {
+                    straight: function (index, setting) {
+                        let div = document.createElement("div");
+                        let img = document.createElement("img");
+                        img.src = setting.getIndexStr(index) + "." + setting.suffix;
+                        img.style = "max-width: 100%;";
+                        div.appendChild(img);
+                        setting.div.appendChild(div);
+                        setTimeout(function () {
+                            if (img.naturalWidth > 0) {
+                                tools.reader.show.straight(index + 1, setting);
+                            } else {
+                                div.removeChild(img);
+                                setting.div.removeChild(div);
+                            }
+                        }, 100);
+                    },
+                    double: function (index, setting) {
+                        let div = document.createElement("div");
+                        if (setting.startIndex + setting.coverNum > index) {
+                            let img = document.createElement("img");
+                            img.src = setting.getIndexStr(index) + "." + setting.suffix;
+                            img.style = "max-width: 100%;";
+                            div.appendChild(img);
+                            setting.div.appendChild(div);
+                            setTimeout(function () {
+                                if (img.naturalWidth > 0) {
+                                    tools.reader.show.double(index + 1, setting);
+                                } else {
+                                    div.removeChild(img);
+                                    setting.div.removeChild(div);
+                                }
+                            }, 100);
+                        } else {
+                            let img1 = document.createElement("img");
+                            let img2 = document.createElement("img");
+                            img1.style = "max-width: 100%;";
+                            img2.style = "max-width: 100%;";
+                            img1.src = setting.getIndexStr(index) + "." + setting.suffix;
+                            img2.src = setting.getIndexStr(index + 1) + "." + setting.suffix;
+
+                            if (setting.left2right) {
+                                div.appendChild(img1);
+                                div.appendChild(img2);
+                            } else {
+                                div.appendChild(img2);
+                                div.appendChild(img1);
+                            }
+
+                            setting.div.appendChild(div);
+                            setTimeout(function () {
+                                if (img1.naturalWidth <= 0) {
+                                    div.removeChild(img1);
+                                }
+
+                                if (img2.naturalWidth <= 0) {
+                                    div.removeChild(img2);
+                                }
+
+                                if (div.childElementCount <= 0) {
+                                    setting.div.removeChild(div);
+                                } else {
+                                    tools.reader.show.double(index + 2, setting);
+                                }
+                            }, 100);
+                        }
+                    }
+                }
             }
-        }, 100);
-    };
-    addImg(1);
+        };
+        return tools;
+    })());
+
 </script>
