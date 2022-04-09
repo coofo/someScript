@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.5
+// @version      0.0.6
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -205,7 +205,7 @@
             task: {
                 create: function (callBack) {
                     let task = {
-                        runtime: {taskList: [], callBack: callBack},
+                        runtime: {taskList: [], callBack: callBack, callBackDone: false},
                         api: {
                             getRuntime: function () {
                                 return this.runtime;
@@ -267,7 +267,8 @@
                                         }
                                     }
                                 }
-                                if (allFinished) {
+                                if (allFinished && !task.runtime.callBackDone) {
+                                    task.runtime.callBackDone = true;
                                     setTimeout(function () {
                                         if (typeof task.runtime.callBack === 'function') {
                                             task.runtime.callBack();
