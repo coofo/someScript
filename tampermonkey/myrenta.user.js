@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.3
+// @version      0.0.4
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -9,7 +9,7 @@
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html$/
 // @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1031855
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047205
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -284,22 +284,28 @@
                         request.open("GET", taskInfo.imgUrl);
                         request.responseType = 'blob';
                         request.onload = function () {
-                            let myReader = new FileReader();
-                            myReader.readAsArrayBuffer(request.response);
-                            myReader.addEventListener("load", function (e) {
-                                let buffer = myReader.result;
-                                if (buffer == null) {
-                                    console.log('ERROR!!! 讀取 arraybuffer 錯誤!!');
-                                } else {
-                                    let arrayBufferView = new Uint8Array(buffer);
-                                    // var blob = new Blob( [ arrayBufferView ] );
+                            if (this.status === 200) {
+                                let myReader = new FileReader();
+                                myReader.readAsArrayBuffer(request.response);
+                                myReader.addEventListener("load", function (e) {
+                                    let buffer = myReader.result;
+                                    if (buffer == null) {
+                                        console.log('ERROR!!! 讀取 arraybuffer 錯誤!!');
+                                        taskItem.failed();
+                                    } else {
+                                        let arrayBufferView = new Uint8Array(buffer);
+                                        // var blob = new Blob( [ arrayBufferView ] );
 
-                                    // let arrayBuffer = tools.myrenta.utils.imgDecode(arrayBufferView, taskInfo.key);
-                                    tools.runtime.downloadTask.zip.file(fileName, arrayBufferView);
-                                    taskItem.success();
-                                    tools.runtime.downloadTask.refreshDownLoadStatus();
-                                }
-                            });
+                                        // let arrayBuffer = tools.myrenta.utils.imgDecode(arrayBufferView, taskInfo.key);
+                                        tools.runtime.downloadTask.zip.file(fileName, arrayBufferView);
+                                        taskItem.success();
+                                        tools.runtime.downloadTask.refreshDownLoadStatus();
+                                    }
+                                });
+                            } else {
+                                console.log(this.status);
+                                taskItem.failed();
+                            }
                         };
                         request.onerror = function (e) {
                             console.log(e);
@@ -312,7 +318,7 @@
                 fileNameService: {
                     getFileName: function (downloadTaskInfo) {
                         let setting = tools.setting;
-                        return coofoUtils.commonUtils.format.string.byMap(setting.fileNameTemplate, downloadTaskInfo) + downloadTaskInfo.suffix;
+                        return coofoUtils.commonUtils.format.string.filePathByMap(setting.fileNameTemplate, downloadTaskInfo) + downloadTaskInfo.suffix;
                     }
                 },
             }

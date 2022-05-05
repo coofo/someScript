@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.6
+// @version      0.0.7
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -71,10 +71,35 @@
                                 value = match;
                             }
                             if (typeof preprocessing === "function") {
-                                value = preprocessing(value);
+                                value = preprocessing(value, key, map);
                             }
                             return value;
                         });
+                    },
+                    filePathByMap: function (str, map) {
+                        let preprocessing = function (value, key, map) {
+
+
+                            let fullWidthDict = [
+                                ['\\\\', '＼'],
+                                ['/', '／'],
+                                [':', '：'],
+                                ['\\?', '？'],
+                                ['"', '＂'],
+                                ['<', '＜'],
+                                ['>', '＞'],
+                                ['\\*', '＊'],
+                                ['\\|', '｜'],
+                                ['~', '～'],
+                            ];
+                            for (let index = 0; index < fullWidthDict.length; index++) {
+                                const rule = fullWidthDict[index];
+                                const reg = new RegExp(rule[0], 'g');
+                                value = value.replace(reg, rule[1])
+                            }
+                            return value;
+                        };
+                        this.byMap(str, map, preprocessing);
                     }
                 },
                 url: {
