@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.6
+// @version      0.0.7
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -9,8 +9,8 @@
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/myrenta.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html$/
-// @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.9.1/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047369
+// @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.1.5/jszip.min.js
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047387
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -51,11 +51,9 @@
     let urlMatch = url.match(tools.myrenta.regex.bookDetailUrl);
 
     let baseInfo = {
-        // bookId: $("div.d-btn a").attr("onclick").match(/\/(\d+)'/)[1],
         title: $("p.title span").html(),
         itemId: urlMatch[3]
     };
-    // tools.myrenta.downloadHelp.getBookInfo(baseInfo.bookId, baseInfo);
 
     //添加按钮
     if (urlMatch[4] === "6") {
@@ -327,18 +325,6 @@
                         let setting = tools.setting;
                         return coofoUtils.commonUtils.format.string.filePathByMap(setting.fileNameTemplate, downloadTaskInfo) + downloadTaskInfo.suffix;
                     }
-                },
-                getBookInfo: function (bookId, info) {
-                    $.ajax({
-                        url: "/item/"+bookId,
-                        type: 'get',
-                        contentType: "text/html; charset=UTF-8",
-                        success: function (request) {
-                            let html = $(request);
-                            info.bookName = html.find("div.breadcrumbs a:last").attr("gtm-name");
-                            info.author = html.find("div.info-main ul li:contains(作者) div:last")[0].innerText;
-                        }
-                    });
                 }
             }
         }

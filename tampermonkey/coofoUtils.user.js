@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.11
+// @version      0.0.12
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -84,7 +84,7 @@
                                 let rKey = match[1];
                                 ext = match[2];
                                 let rValue = map[rKey];
-                                if (value !== null || value !== undefined) {
+                                if (rValue !== null && rValue !== undefined) {
                                     value = rValue;
                                 } else {
                                     value = "";
