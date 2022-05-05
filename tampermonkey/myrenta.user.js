@@ -1,15 +1,16 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.4
+// @version      0.0.5
 // @license      AGPL License
 // @description  下载
 // @author       coofo
+// @updateURL    https://github.com/coofo/someScript/raw/main/tampermonkey/myrenta.user.js
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/myrenta.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html$/
 // @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047205
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047369
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -25,12 +26,12 @@
      * ${title}        漫画名
      * ${index}        插图序号
      */
-    setting.fileNameTemplate = "[myrenta]/[${itemId}]${title}/${index}";
+    setting.fileNameTemplate = "[myrenta]/${itemId_squareBracket}${title}/${index_index4}";
 
     /**
      * zip文件名格式（包括路径）
      */
-    setting.zipNameTemplate = "[myrenta][${itemId}]${title}";
+    setting.zipNameTemplate = "[myrenta]${itemId_squareBracket}${title}";
 
     /**
      * 下载线程数量
@@ -50,9 +51,11 @@
     let urlMatch = url.match(tools.myrenta.regex.bookDetailUrl);
 
     let baseInfo = {
+        // bookId: $("div.d-btn a").attr("onclick").match(/\/(\d+)'/)[1],
         title: $("p.title span").html(),
         itemId: urlMatch[3]
     };
+    // tools.myrenta.downloadHelp.getBookInfo(baseInfo.bookId, baseInfo);
 
     //添加按钮
     if (urlMatch[4] === "6") {
@@ -85,7 +88,7 @@
                     ext: bookInfo.ext,
                     key: bookInfo.key,
                     page: i + 1,
-                    index: coofoUtils.commonUtils.format.num.fullNum(i + 1, 4),
+                    index: i + 1,
                     suffix: "." + bookInfo.ext,
                     downloadTask: downloadTask
                 }, baseInfo);
@@ -98,12 +101,12 @@
                 }
             };
 
-            downloadTask.runtime.callBack = function () {
+            downloadTask.runtime.callBack = function (completeNum, retryTimesOutNum) {
                 tools.runtime.downloadTask.zip.generateAsync({type: "blob"}).then(function (content) {
                     let zipFileName = coofoUtils.commonUtils.format.string.byMap(tools.setting.zipNameTemplate, baseInfo) + ".zip";
 
                     coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
-                    tools.runtime.downloadTask.showFinished();
+                    tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
                 });
             };
 
@@ -184,8 +187,12 @@
                     let percent = coofoUtils.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, digitNum) + "%";
                     tools.runtime.downloadTask.showMsg("下载 " + percent);
                 },
-                showFinished: function () {
-                    this.showMsg("下载完成：" + tools.runtime.downloadTask.getDownloadedNum());
+                showFinished: function (completeNum, retryTimesOutNum) {
+                    let msg = "下载完成：" + completeNum;
+                    if (retryTimesOutNum > 0) {
+                        msg = msg + " - " + retryTimesOutNum;
+                    }
+                    this.showMsg(msg);
                     tools.runtime.downloadTask.generateTask = null;
                     tools.runtime.downloadTask.downloadTask = null;
                 }
@@ -321,6 +328,18 @@
                         return coofoUtils.commonUtils.format.string.filePathByMap(setting.fileNameTemplate, downloadTaskInfo) + downloadTaskInfo.suffix;
                     }
                 },
+                getBookInfo: function (bookId, info) {
+                    $.ajax({
+                        url: "/item/"+bookId,
+                        type: 'get',
+                        contentType: "text/html; charset=UTF-8",
+                        success: function (request) {
+                            let html = $(request);
+                            info.bookName = html.find("div.breadcrumbs a:last").attr("gtm-name");
+                            info.author = html.find("div.info-main ul li:contains(作者) div:last")[0].innerText;
+                        }
+                    });
+                }
             }
         }
     };

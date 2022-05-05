@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.7
+// @version      0.0.11
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -78,28 +78,72 @@
                     },
                     filePathByMap: function (str, map) {
                         let preprocessing = function (value, key, map) {
-
-
-                            let fullWidthDict = [
-                                ['\\\\', '＼'],
-                                ['/', '／'],
-                                [':', '：'],
-                                ['\\?', '？'],
-                                ['"', '＂'],
-                                ['<', '＜'],
-                                ['>', '＞'],
-                                ['\\*', '＊'],
-                                ['\\|', '｜'],
-                                ['~', '～'],
-                            ];
-                            for (let index = 0; index < fullWidthDict.length; index++) {
-                                const rule = fullWidthDict[index];
-                                const reg = new RegExp(rule[0], 'g');
-                                value = value.replace(reg, rule[1])
+                            let match = key.match(/^(.*)_([a-zA-Z0-9]+)$/);
+                            let ext = null;
+                            if (match != null) {
+                                let rKey = match[1];
+                                ext = match[2];
+                                let rValue = map[rKey];
+                                if (value !== null || value !== undefined) {
+                                    value = rValue;
+                                } else {
+                                    value = "";
+                                }
                             }
+
+                            if (typeof value === "string") {
+                                value = value.replace(/[\/:?"<>*|~]/g, function (match, pos, originalText) {
+                                    switch (match) {
+                                        case "\\":
+                                            return "＼";
+                                        case "/":
+                                            return "／";
+                                        case ":":
+                                            return "：";
+                                        case "?":
+                                            return "？";
+                                        case '"':
+                                            return '＂';
+                                        case '<':
+                                            return '＜';
+                                        case '>':
+                                            return '＞';
+                                        case '*':
+                                            return '＊';
+                                        case '|':
+                                            return '｜';
+                                        case '~':
+                                            return '～';
+                                    }
+                                });
+                            }
+
+                            if (ext !== null && value !== "") {
+                                switch (ext) {
+                                    case "path":
+                                        value += '/';
+                                        break;
+                                    case "parenthesis":
+                                        value = "(" + value + ")";
+                                        break;
+                                    case "squareBracket":
+                                        value = "[" + value + "]";
+                                        break;
+                                    case "curlyBracket":
+                                        value = "{" + value + "}";
+                                        break;
+                                    default:
+                                        let indexMatch = ext.match(/index([0-9]+)/);
+                                        if (indexMatch !== null) {
+                                            value = coofoUtils.commonUtils.format.num.fullNum(value, Number(indexMatch[1]));
+                                        }
+                                        break;
+                                }
+                            }
+
                             return value;
                         };
-                        this.byMap(str, map, preprocessing);
+                        return coofoUtils.commonUtils.format.string.byMap(str, map, preprocessing);
                     }
                 },
                 url: {
@@ -275,10 +319,14 @@
 
                                 //寻找新任务并标记返回
                                 let allFinished = true;
+                                let completeNum = 0;
+                                let retryTimesOutNum = 0;
                                 for (let i = 0; i < taskList.length; i++) {
                                     let taskItem = taskList[i];
 
-                                    if (taskItem.complete === false && taskItem.lastRetryTimes > 0) {
+                                    if (taskItem.complete === true) {
+                                        completeNum++;
+                                    } else if (taskItem.lastRetryTimes > 0) {
                                         if (taskItem.handler == null) {
                                             taskItem.handler = handler;
                                             setTimeout(function () {
@@ -290,13 +338,15 @@
                                         } else {
                                             allFinished = false;
                                         }
+                                    } else {
+                                        retryTimesOutNum++;
                                     }
                                 }
                                 if (allFinished && !task.runtime.callBackDone) {
                                     task.runtime.callBackDone = true;
                                     setTimeout(function () {
                                         if (typeof task.runtime.callBack === 'function') {
-                                            task.runtime.callBack();
+                                            task.runtime.callBack(completeNum, retryTimesOutNum);
                                         }
                                     }, 0);
                                 }
