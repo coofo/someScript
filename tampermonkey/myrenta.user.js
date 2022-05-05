@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.5
+// @version      0.0.6
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -9,7 +9,7 @@
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/myrenta.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html$/
-// @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
+// @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.9.1/jszip.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047369
 // @connect      myrenta-books.*
 // @grant        GM_download
@@ -103,7 +103,7 @@
 
             downloadTask.runtime.callBack = function (completeNum, retryTimesOutNum) {
                 tools.runtime.downloadTask.zip.generateAsync({type: "blob"}).then(function (content) {
-                    let zipFileName = coofoUtils.commonUtils.format.string.byMap(tools.setting.zipNameTemplate, baseInfo) + ".zip";
+                    let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, baseInfo) + ".zip";
 
                     coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
                     tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
