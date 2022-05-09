@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.0
+// @version      0.1.1
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -30,12 +30,12 @@
      * ${chapterName}   章节名
      * ${index}         插图序号
      */
-    setting.fileNameTemplate = "[manwa]/[${bookId}][${author}]${bookName}(${selectType})/[${chapterId}]${chapterName}/${index}";
+    setting.fileNameTemplate = "[manwa]/[${bookId}]${author_squareBracket}${bookName}(${selectType})/[${chapterId}]${chapterName}/${index}";
 
     /**
      * zip文件名格式（包括路径）
      */
-    setting.zipNameTemplate = "[manwa][${bookId}][${author}]${bookName}";
+    setting.zipNameTemplate = "[manwa][${bookId}]${author_squareBracket}${bookName}";
 
     /**
      * 下载线程数量
@@ -72,7 +72,7 @@
     let baseInfo = {
         bookId: urlMatch[1],
         bookName: $("div.detail-main p.detail-main-info-title").html(),
-        author: $("p.detail-main-info-author a.detail-main-info-value").html()
+        author: $("p.detail-main-info-author:contains(作者) a").html()
     };
 
     $("a.detail-bottom-btn").after('<a id="user_js_download" class="detail-bottom-btn">⬇下载</a>');
@@ -105,7 +105,8 @@
             }, baseInfo);
 
             for (let i = 0; i < adultList.length; i++) {
-                let chapterId = $(adultList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
+                // let chapterId = $(adultList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
+                let chapterId = $(adultList[i]).attr("href").match(/(\d+)$/)[1];
 
                 let info = Object.assign({
                     chapterId: chapterId
@@ -122,7 +123,8 @@
                 downloadTask: downloadTask,
             }, baseInfo);
             for (let i = 0; i < waterList.length; i++) {
-                let chapterId = $(waterList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
+                // let chapterId = $(waterList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
+                let chapterId = $(waterList[i]).attr("href").match(/(\d+)$/)[1];
 
                 let info = Object.assign({
                     chapterId: chapterId
@@ -142,7 +144,7 @@
             downloadTask.runtime.callBack = function (completeNum, retryTimesOutNum) {
                 if (tools.setting.downloadMode === "zip") {
                     tools.runtime.downloadTask.zip.generateAsync({type: "blob"}).then(function (content) {
-                        let zipFileName = coofoUtils.commonUtils.format.string.byMap(tools.setting.zipNameTemplate, baseInfo) + ".zip";
+                        let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, baseInfo) + ".zip";
 
                         coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
                         tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
@@ -369,7 +371,7 @@
                 fileNameService: {
                     getFileName: function (downloadTaskInfo) {
                         let setting = tools.setting;
-                        return coofoUtils.commonUtils.format.string.byMap(setting.fileNameTemplate, downloadTaskInfo) + downloadTaskInfo.suffix;
+                        return coofoUtils.commonUtils.format.string.filePathByMap(setting.fileNameTemplate, downloadTaskInfo) + downloadTaskInfo.suffix;
                     }
                 },
 
