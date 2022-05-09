@@ -1,16 +1,17 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.4
+// @version      0.1.0
 // @license      AGPL License
 // @description  下载
 // @author       coofo
+// @updateURL    https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
-// @include      /^https://manwa.me/book/\d+/
-// @require      https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1031698
-// @connect      img.manwa.me
+// @include      /^https://manwa.fun/book/\d+/
+// @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.1.5/jszip.min.js
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047387
+// @connect      img.manwa.fun
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
@@ -138,22 +139,16 @@
                 tools.runtime.downloadTask.showMsg("下载目标为0");
                 return;
             }
-            downloadTask.runtime.callBack = function () {
-                let list = downloadTask.runtime.taskList;
-                let completeNum = 0;
-                for (let i = 0; i < list.length; i++) {
-                    if (list[i].complete === true) completeNum++;
-                }
-
+            downloadTask.runtime.callBack = function (completeNum, retryTimesOutNum) {
                 if (tools.setting.downloadMode === "zip") {
                     tools.runtime.downloadTask.zip.generateAsync({type: "blob"}).then(function (content) {
                         let zipFileName = coofoUtils.commonUtils.format.string.byMap(tools.setting.zipNameTemplate, baseInfo) + ".zip";
 
                         coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
-                        tools.runtime.downloadTask.showFinished();
+                        tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
                     });
                 }
-                tools.runtime.downloadTask.showFinished();
+                tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
             };
 
             for (let i = 0; i < setting.threadNum; i++) {
@@ -240,8 +235,12 @@
                     let percent = coofoUtils.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, digitNum) + "%";
                     tools.runtime.downloadTask.showMsg("下载 " + percent);
                 },
-                showFinished: function () {
-                    this.showMsg("下载完成：" + tools.runtime.downloadTask.getDownloadedNum());
+                showFinished: function (completeNum, retryTimesOutNum) {
+                    let msg = "下载完成：" + completeNum;
+                    if (retryTimesOutNum > 0) {
+                        msg = msg + " - " + retryTimesOutNum;
+                    }
+                    this.showMsg(msg);
                     tools.runtime.downloadTask.generateTask = null;
                     tools.runtime.downloadTask.downloadTask = null;
                 }
@@ -251,9 +250,9 @@
 
         manwa: {
             regex: {
-                bookUrl: /^https:\/\/manwa.me\/book\/(\d+)/,
+                bookUrl: /^https:\/\/manwa.fun\/book\/(\d+)/,
                 archiveUrl: /^https:\/\/healthywawa.com\/archives\/(\d+)/,
-                dataUrl: /^https:\/\/manwa.me\/forInject\/(\d+).html/
+                dataUrl: /^https:\/\/manwa.fun\/forInject\/(\d+).html/
             },
             utils: {
                 isBookPage: function () {
@@ -264,8 +263,8 @@
             api: {
                 getImgUrl: function (chapterId, onSuccess, onError, onComplete) {
                     $.ajax({
-                        // url: "https://manwa.me/forInject/653939.html?f=fozcRotntz13bQBoXcsulA==",
-                        url: `https://manwa.me/forInject/${chapterId}.html`,
+                        // url: "https://manwa.fun/forInject/653939.html?f=fozcRotntz13bQBoXcsulA==",
+                        url: `https://manwa.fun/forInject/${chapterId}.html`,
                         type: 'get',
                         contentType: "text/html; charset=utf-8",
                         success: function (request) {
