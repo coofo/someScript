@@ -1,16 +1,19 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.1
+// @version      0.1.2
 // @license      AGPL License
 // @description  下载
 // @author       coofo
 // @updateURL    https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
-// @include      /^https://manwa.fun/book/\d+/
+// @include      /^https://manwa.(me|live|vip|fun)/book/\d+/
 // @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047387
+// @connect      img.manwa.me
+// @connect      img.manwa.live
+// @connect      img.manwa.vip
 // @connect      img.manwa.fun
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -252,9 +255,9 @@
 
         manwa: {
             regex: {
-                bookUrl: /^https:\/\/manwa.fun\/book\/(\d+)/,
+                bookUrl: /^https:\/\/manwa.[a-zA-Z]+\/book\/(\d+)/,
                 archiveUrl: /^https:\/\/healthywawa.com\/archives\/(\d+)/,
-                dataUrl: /^https:\/\/manwa.fun\/forInject\/(\d+).html/
+                dataUrl: /^https:\/\/manwa.[a-zA-Z]+\/forInject\/(\d+).html/
             },
             utils: {
                 isBookPage: function () {
@@ -265,8 +268,7 @@
             api: {
                 getImgUrl: function (chapterId, onSuccess, onError, onComplete) {
                     $.ajax({
-                        // url: "https://manwa.fun/forInject/653939.html?f=fozcRotntz13bQBoXcsulA==",
-                        url: `https://manwa.fun/forInject/${chapterId}.html`,
+                        url: `/forInject/${chapterId}.html`,
                         type: 'get',
                         contentType: "text/html; charset=utf-8",
                         success: function (request) {
