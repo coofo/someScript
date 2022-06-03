@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.12
+// @version      0.0.13
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -120,6 +120,8 @@
 
                             if (ext !== null && value !== "") {
                                 switch (ext) {
+                                    case "empty":
+                                        break;
                                     case "path":
                                         value += '/';
                                         break;
@@ -236,6 +238,28 @@
                             document.body.removeChild(aLink);
                         }
                     }
+                }
+            },
+            xss: {
+                htmlEscape: function (text) {
+                    if (!text) {
+                        return text;
+                    }
+                    text = text + "";
+                    return text.replace(/[<>"&']/g, function (match, pos, originalText) {
+                        switch (match) {
+                            case "<":
+                                return "&lt;";
+                            case ">":
+                                return "&gt;";
+                            case "&":
+                                return "&amp;";
+                            case "\"":
+                                return "&quot;";
+                            case "'":
+                                return "&#39;";
+                        }
+                    })
                 }
             }
         },
