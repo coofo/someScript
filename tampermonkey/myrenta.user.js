@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.8
+// @version      0.0.9
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -182,16 +182,18 @@
                     type: 'info',
                     title: '将使用暂存信息',
                     html: html,
-                    confirmButtonText: '确定',
+                    confirmButtonText: '使用',
                     showCancelButton: true,
-                    cancelButtonText: '终止',
+                    cancelButtonText: '不使用',
                 }).then((result) => {
                     if (result.value) {
                         download(info);
+                    } else if (result.dismiss === Swal.DismissReason.cancel) {
+                        download({});
                     }
                 });
             } else {
-                download(info);
+                download({});
             }
         });
     }
