@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.2
+// @version      0.1.3
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -10,6 +10,7 @@
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://manwa.(me|live|vip|fun)/book/\d+/
 // @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.1.5/jszip.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047387
 // @connect      img.manwa.me
 // @connect      img.manwa.live
@@ -268,7 +269,7 @@
             api: {
                 getImgUrl: function (chapterId, onSuccess, onError, onComplete) {
                     $.ajax({
-                        url: `/forInject/${chapterId}.html`,
+                        url: `/chapter/${chapterId}`,
                         type: 'get',
                         contentType: "text/html; charset=utf-8",
                         success: function (request) {
@@ -278,9 +279,9 @@
                             div.innerHTML = request;
                             let imgUrls = [];
                             let divSelector = $(div);
-                            let imgs = divSelector.find("div.view-main-1 img");
+                            let imgs = divSelector.find("div.view-main-1 img.content-img");
                             for (let i = 0; i < imgs.length; i++) {
-                                imgUrls[i] = $(imgs[i]).attr("data-original");
+                                imgUrls[i] = $(imgs[i]).attr("data-r-src");
                             }
                             // if (imgUrls.length <= 0) {
                             //     tools.manwa.utils.tagZeroImgItem(uid, iid);
@@ -306,7 +307,14 @@
                         for (let j = 0; j < imgUrls.length; j++) {
                             let imgUrl = imgUrls[j];
 
-                            let suffix = coofoUtils.commonUtils.format.file.getSuffix(imgUrl);
+                            let noQUrl;
+                            let qIdx = imgUrl.lastIndexOf('?');
+                            if (qIdx < 0) {
+                                noQUrl = imgUrl;
+                            } else {
+                                noQUrl = imgUrl.substring(0,qIdx);
+                            }
+                            let suffix = coofoUtils.commonUtils.format.file.getSuffix(noQUrl);
                             if (suffix.length > 0) {
                                 suffix = "." + suffix;
                             }
@@ -358,17 +366,51 @@
                 zipDownloadTask: function (taskInfo, taskItem) {
                     let url = coofoUtils.commonUtils.format.url.fullUrl(taskInfo.imgUrl);
                     let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(taskInfo);
-                    coofoUtils.tampermonkeyUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
-                        if (responseDetails.status === 200) {
-                            tools.runtime.downloadTask.zip.file(fileName, responseDetails.response);
+
+                    let request = new XMLHttpRequest;
+                    request.open("GET", url, !0);
+                    request.responseType = "arraybuffer";
+                    request.onload = function () {
+                        if(200 === request.status){
+                            let r = request.response;
+                            let a = "my2ecret782ecret";
+                            let i = CryptoJS.enc.Utf8.parse(a);
+                            let l = CryptoJS.lib.WordArray.create(r);
+                            let e = CryptoJS.AES.decrypt({ciphertext: l}, i, {iv: i, padding: CryptoJS.pad.Pkcs7});
+                            let o = function (e) {
+                                const t = e.sigBytes, r = e.words, a = new Uint8Array(t);
+                                for (let n = 0, s = 0; n != t;) {
+                                    let i = r[s++];
+                                    if (a[n++] = (4278190080 & i) >>> 24, n == t) break;
+                                    if (a[n++] = (16711680 & i) >>> 16, n == t) break;
+                                    if (a[n++] = (65280 & i) >>> 8, n == t) break;
+                                    a[n++] = 255 & i
+                                }
+                                return a
+                            };
+                            tools.runtime.downloadTask.zip.file(fileName, o(e));
                             taskItem.success();
                             tools.runtime.downloadTask.refreshDownLoadStatus();
-                        } else {
+                        }else{
                             console.error("download error: " + url);
-                            console.error(responseDetails);
+                            console.error(a.status);
                             taskItem.failed();
                         }
-                    })
+                    };
+                    request.send();
+
+
+                    // coofoUtils.tampermonkeyUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
+                    //     if (responseDetails.status === 200) {
+                    //         tools.runtime.downloadTask.zip.file(fileName, responseDetails.response);
+                    //         taskItem.success();
+                    //         tools.runtime.downloadTask.refreshDownLoadStatus();
+                    //     } else {
+                    //         console.error("download error: " + url);
+                    //         console.error(responseDetails);
+                    //         taskItem.failed();
+                    //     }
+                    // })
                 },
                 fileNameService: {
                     getFileName: function (downloadTaskInfo) {
