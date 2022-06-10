@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.11
+// @version      0.0.12
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -176,7 +176,27 @@
                         <button id="saveTemplate">保存</button><button id="resetTemplate">默认值</button>`;
             Swal.fire({
                 title: '命名模板设置',
-                html: html
+                html: html,
+                footer: `<div><table border="1">
+                             <tr><td>巨集</td><td>说明</td></tr>
+                             <tr><td>\${bookId}</td><td>作品集合ID（暂存信息后才可获取）</td></tr>
+                             <tr><td>\${bookName}</td><td>作品名称（暂存信息后才可获取）</td></tr>
+                             <tr><td>\${author}</td><td>作者（暂存信息后才可获取）</td></tr>
+                             <tr><td>\${itemId}</td><td>册ID</td></tr>
+                             <tr><td>\${originalTitle}</td><td>完整册标题名</td></tr>
+                             <tr><td>\${title}</td><td>册标题名</td></tr>
+                             <tr><td>\${index}</td><td>图序号</td></tr>
+                          </table><br>
+                          <table border="1">
+                             <tr><td>后缀</td><td>说明（取到值时才生效，取不到则替换为空字符串）</td></tr>
+                             <tr><td>empty</td><td>未取到时填充为空字符串</td></tr>
+                             <tr><td>parenthesis</td><td>圆括号</td></tr>
+                             <tr><td>squareBracket</td><td>方括号</td></tr>
+                             <tr><td>curlyBracket</td><td>大括号</td></tr>
+                             <tr><td>path</td><td>后加文件夹分隔符</td></tr>
+                             <tr><td>index2</td><td>向前添0补全至2位</td></tr>
+                             <tr><td>index3</td><td>向前添0补全至3位（以此类推）</td></tr>
+                         </table></div>`
             }).then((result) => {
                 if (result.isConfirmed) {
                     setting.fileNameTemplate = $('#fileNameTemplate').val();
