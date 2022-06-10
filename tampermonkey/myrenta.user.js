@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.9
+// @version      0.0.10
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -45,7 +45,6 @@
                 html += n + '：' + htmlEscape(info[n]) + '<br>';
             }
             Swal.fire({
-                type: 'info',
                 title: '已暂存信息',
                 html: html,
                 confirmButtonText: '确定',
@@ -168,7 +167,7 @@
 
         };
         btn.click(function () {
-            let info = GM_getValue("bookInfo",{});
+            let info = GM_getValue("bookInfo", {});
             let html = '';
             let infoNum = 0;
             let htmlEscape = coofoUtils.commonUtils.xss.htmlEscape;
@@ -178,10 +177,17 @@
                 infoNum++;
             }
             if (infoNum > 0) {
+                let icon;
+                if ($("p.title span").html().startsWith(info.bookName)) {
+                    icon = 'success';
+                } else {
+                    icon = 'warning';
+                }
                 Swal.fire({
-                    type: 'info',
+                    icon: icon,
                     title: '将使用暂存信息',
                     html: html,
+                    showCloseButton: true,
                     confirmButtonText: '使用',
                     showCancelButton: true,
                     cancelButtonText: '不使用',
