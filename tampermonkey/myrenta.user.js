@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.10
+// @version      0.0.11
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -59,19 +59,19 @@
 
     } else if ((urlMatch = url.match(tools.myrenta.regex.bookDetailUrl)) != null) {
 
-
+        setting.def={};
         /**
          * 文件名格式（包括路径）
          * ${itemId}       漫画ID
          * ${title}        漫画名
          * ${index}        插图序号
          */
-        setting.fileNameTemplate = "[myrenta]/${bookId_squareBracket}${author_squareBracket}${bookName_path}${itemId_squareBracket}${title}/${index_index4}";
+        setting.def.fileNameTemplate = "[myrenta]/${bookId_squareBracket}${author_squareBracket}${bookName_path}${itemId_squareBracket}${title}/${index_index4}";
 
         /**
          * zip文件名格式（包括路径）
          */
-        setting.zipNameTemplate = "[myrenta]${itemId_squareBracket}${originalTitle}";
+        setting.def.zipNameTemplate = "[myrenta]${itemId_squareBracket}${originalTitle}";
 
         /**
          * 下载线程数量
@@ -166,6 +166,47 @@
             });
 
         };
+
+
+        let setting4Download = function (info) {
+            let html = `文件名格式<br/>
+                        <input id="fileNameTemplate" style="width: 90%;"><br/>
+                        压缩包名格式<br/>
+                        <input id="zipNameTemplate" style="width: 90%;"><br/>
+                        <button id="saveTemplate">保存</button><button id="resetTemplate">默认值</button>`;
+            Swal.fire({
+                title: '命名模板设置',
+                html: html
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    setting.fileNameTemplate = $('#fileNameTemplate').val();
+                    setting.zipNameTemplate = $('#zipNameTemplate').val();
+                    download(info);
+                }
+            });
+            let templateSetting = GM_getValue("templateSetting", null);
+            if (templateSetting == null) {
+                $('#fileNameTemplate').val(setting.def.fileNameTemplate);
+                $('#zipNameTemplate').val(setting.def.zipNameTemplate);
+            } else {
+                $('#fileNameTemplate').val(templateSetting.fileNameTemplate);
+                $('#zipNameTemplate').val(templateSetting.zipNameTemplate);
+            }
+            $('#saveTemplate').click(function () {
+                let templateSetting = {
+                    fileNameTemplate: $('#fileNameTemplate').val(),
+                    zipNameTemplate: $('#zipNameTemplate').val()
+                };
+                GM_setValue("templateSetting", templateSetting);
+            });
+            $('#resetTemplate').click(function () {
+                $('#fileNameTemplate').val(setting.def.fileNameTemplate);
+                $('#zipNameTemplate').val(setting.def.zipNameTemplate);
+                GM_deleteValue("templateSetting");
+            });
+
+        };
+
         btn.click(function () {
             let info = GM_getValue("bookInfo", {});
             let html = '';
@@ -187,19 +228,21 @@
                     icon: icon,
                     title: '将使用暂存信息',
                     html: html,
-                    showCloseButton: true,
                     confirmButtonText: '使用',
+                    showDenyButton: true,
+                    denyButtonText: `不使用`,
                     showCancelButton: true,
-                    cancelButtonText: '不使用',
+                    cancelButtonText: '取消',
                 }).then((result) => {
-                    if (result.value) {
-                        download(info);
-                    } else if (result.dismiss === Swal.DismissReason.cancel) {
-                        download({});
+                    if (result.isConfirmed) {
+                        setting4Download(info);
+                    } else if (result.isDenied) {
+                        setting4Download({});
                     }
                 });
+
             } else {
-                download({});
+                setting4Download({});
             }
         });
     }
