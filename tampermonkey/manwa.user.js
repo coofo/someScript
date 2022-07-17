@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.4
+// @version      0.1.5
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -34,7 +34,7 @@
      * ${chapterName}   章节名
      * ${index}         插图序号
      */
-    setting.fileNameTemplate = "[manwa]/[${bookId}]${author_squareBracket}${bookName}(${selectType})/[${chapterId}]${chapterName}/${index}";
+    setting.fileNameTemplate = "[manwa]/[${bookId}]${author_squareBracket}${bookName}(${selectType})/[${idx_index3}][${chapterId}]${chapterName}/${index}";
 
     /**
      * zip文件名格式（包括路径）
@@ -45,7 +45,7 @@
      * 下载线程数量
      * @type {number}
      */
-    setting.threadNum = 2;
+    setting.threadNum = 3;
     /**
      * 下载模式
      * single：将图片文件单个下载（如果需要保存的文件有文件夹结构，则需要将tampermonkey下载模式调整为【浏览器API】）
@@ -94,12 +94,15 @@
             tools.runtime.downloadTask.zip = new JSZip();
         }
 
-        let adultList = $("ul#adult-list-select li a.chapteritem");
-        let waterList = $("ul#detail-list-select li a.chapteritem");
+        let adultList = $("ul#adult-list-select li");
+        let waterList = $("ul#detail-list-select li");
         let generateTask = coofoUtils.service.task.create();
         let downloadTask = coofoUtils.service.task.create();
         tools.runtime.downloadTask.generateTask = generateTask;
         tools.runtime.downloadTask.downloadTask = downloadTask;
+        let generateTaskFunc = function (taskInfo, taskItem) {
+            setTimeout(() => tools.manwa.downloadHelp.generateTask(taskInfo, taskItem), 500);
+        };
 
         if (setting.selectType === "all" || setting.selectType === "adult" || waterList.length <= 0) {
             //完整
@@ -109,14 +112,16 @@
             }, baseInfo);
 
             for (let i = 0; i < adultList.length; i++) {
-                // let chapterId = $(adultList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
-                let chapterId = $(adultList[i]).attr("href").match(/(\d+)$/)[1];
+                let li = $(adultList[i]);
+                let idx = li.attr("idx");
+                let chapterId = li.find('a.chapteritem').attr("href").match(/(\d+)$/)[1];
 
                 let info = Object.assign({
-                    chapterId: chapterId
+                    chapterId: chapterId,
+                    idx: idx
                 }, baseAdultInfo);
 
-                generateTask.api.addTask(tools.manwa.downloadHelp.generateTask, info, setting.downloadRetryTimes);
+                generateTask.api.addTask(generateTaskFunc, info, setting.downloadRetryTimes);
             }
         }
 
@@ -127,14 +132,16 @@
                 downloadTask: downloadTask,
             }, baseInfo);
             for (let i = 0; i < waterList.length; i++) {
-                // let chapterId = $(waterList[i]).attr("href").match(/jmud\((\d+)\)/)[1];
-                let chapterId = $(waterList[i]).attr("href").match(/(\d+)$/)[1];
+                let li = $(waterList[i]);
+                let idx = li.attr("idx");
+                let chapterId = li.find('a.chapteritem').attr("href").match(/(\d+)$/)[1];
 
                 let info = Object.assign({
-                    chapterId: chapterId
+                    chapterId: chapterId,
+                    idx: idx
                 }, baseWaterInfo);
 
-                generateTask.api.addTask(tools.manwa.downloadHelp.generateTask, info, setting.downloadRetryTimes);
+                generateTask.api.addTask(generateTaskFunc, info, setting.downloadRetryTimes);
             }
         }
 
