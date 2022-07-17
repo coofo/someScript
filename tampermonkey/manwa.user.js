@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.3
+// @version      0.1.4
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -45,7 +45,7 @@
      * 下载线程数量
      * @type {number}
      */
-    setting.threadNum = 5;
+    setting.threadNum = 2;
     /**
      * 下载模式
      * single：将图片文件单个下载（如果需要保存的文件有文件夹结构，则需要将tampermonkey下载模式调整为【浏览器API】）
@@ -161,7 +161,7 @@
                 downloadTask.api.exec(i);
             }
         };
-        for (let i = 0; i < setting.threadNum; i++) {
+        for (let i = 0; i < 1; i++) {
             generateTask.api.exec(i);
         }
     });
