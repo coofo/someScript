@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.5
+// @version      0.1.6
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -11,7 +11,7 @@
 // @include      /^https://manwa.(me|live|vip|fun)/book/\d+/
 // @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1047387
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1083480
 // @connect      img.manwa.me
 // @connect      img.manwa.live
 // @connect      img.manwa.vip
@@ -73,10 +73,19 @@
     //首页基础信息
     let url = window.location.href;
     let urlMatch = url.match(tools.manwa.regex.bookUrl);
+
+    let tagList = $(".info-tag-span");
+    let tagStrList = [];
+    for (let i = 0; i < tagList.length; i++) {
+        tagStrList.push($(tagList[i]).html());
+    }
+
     let baseInfo = {
         bookId: urlMatch[1],
         bookName: $("div.detail-main p.detail-main-info-title").html(),
-        author: $("p.detail-main-info-author:contains(作者) a").html()
+        author: $("p.detail-main-info-author:contains(作者) a").html(),
+        tag: tagStrList.join(','),
+        summary: $(".detail-desc").text()
     };
 
     $("a.detail-bottom-btn").after('<a id="user_js_download" class="detail-bottom-btn">⬇下载</a>');
@@ -336,6 +345,26 @@
                             if (tools.setting.downloadMode === "single") {
                                 downloadFunction = tools.manwa.downloadHelp.singleDownloadTask;
                             } else {
+
+                                if (imgUrls.length > 0) {
+                                    let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(Object.assign({
+                                        index: "ComicInfo",
+                                        suffix: ".xml"
+                                    }, info, taskInfo));
+                                    let xml = coofoUtils.comicInfoUtils.create({
+                                        Series: infoEx.bookName,
+                                        Title: infoEx.chapterName,
+                                        Number: Number(infoEx.idx) + 1 + '',
+                                        Summary: infoEx.summary,
+                                        Writer: infoEx.author,
+                                        Publisher: 'manwa',
+                                        Tags: infoEx.tag,
+                                        LanguageISO:'zh'
+
+                                    });
+                                    tools.runtime.downloadTask.zip.file(fileName, xml);
+                                }
+
                                 downloadFunction = tools.manwa.downloadHelp.zipDownloadTask;
                             }
                             taskInfo.downloadTask.api.addTask(downloadFunction, infoEx, tools.setting.downloadRetryTimes);
