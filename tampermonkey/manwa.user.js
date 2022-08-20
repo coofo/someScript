@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.6
+// @version      0.1.7
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -9,7 +9,7 @@
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://manwa.(me|live|vip|fun)/book/\d+/
-// @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.1.5/jszip.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1083480
 // @connect      img.manwa.me
