@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.7
+// @version      0.1.8
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -34,12 +34,12 @@
      * ${chapterName}   章节名
      * ${index}         插图序号
      */
-    setting.fileNameTemplate = "[manwa]/[${bookId}]${author_squareBracket}${bookName}(${selectType})/[${idx_index3}][${chapterId}]${chapterName}/${index}";
+    setting.fileNameTemplate = "[manwa]/[${bookId}]${bookName}(${selectType})/[${idx_index3}][${chapterId}]${chapterName}/${index}";
 
     /**
      * zip文件名格式（包括路径）
      */
-    setting.zipNameTemplate = "[manwa][${bookId}]${author_squareBracket}${bookName}";
+    setting.zipNameTemplate = "[manwa][${bookId}]${bookName}";
 
     /**
      * 下载线程数量
@@ -74,17 +74,18 @@
     let url = window.location.href;
     let urlMatch = url.match(tools.manwa.regex.bookUrl);
 
-    let tagList = $(".info-tag-span");
-    let tagStrList = [];
-    for (let i = 0; i < tagList.length; i++) {
-        tagStrList.push($(tagList[i]).html());
-    }
+    // let tagList = $(".info-tag-span");
+    // let tagStrList = [];
+    // for (let i = 0; i < tagList.length; i++) {
+    //     tagStrList.push($(tagList[i]).html());
+    // }
 
     let baseInfo = {
         bookId: urlMatch[1],
         bookName: $("div.detail-main p.detail-main-info-title").html(),
-        author: $("p.detail-main-info-author:contains(作者) a").html(),
-        tag: tagStrList.join(','),
+        author: $("p.detail-main-info-author:contains(作者) a").toArray().map(o => $(o).html()).join(','),
+        // tag: tagStrList.join(','),
+        tag: $(".info-tag-span").toArray().map(o => $(o).html()).join(','),
         summary: $(".detail-desc").text()
     };
 
@@ -460,5 +461,14 @@
         }
     };
 
+    $.fn.extend({
+        toArray:function(){
+            let array = [];
+            for(let i = 0; i < this.length;i++){
+                array.push(this[i]);
+            }
+            return array;
+        }
+    });
     return tools;
 })());
