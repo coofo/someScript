@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.8
+// @version      0.1.9
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -460,15 +460,5 @@
             }
         }
     };
-
-    $.fn.extend({
-        toArray:function(){
-            let array = [];
-            for(let i = 0; i < this.length;i++){
-                array.push(this[i]);
-            }
-            return array;
-        }
-    });
     return tools;
 })());

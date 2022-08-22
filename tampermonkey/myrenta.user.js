@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.12
+// @version      0.0.13
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -11,8 +11,8 @@
 // @match        https://tw.myrenta.com/item/*
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html$/
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
-// @require      https://cdn.bootcdn.net/ajax/libs/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1057281
+// @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1084326
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -33,10 +33,20 @@
 
         $('#saveBookInfo').click(function () {
             // console.log(GM_getValue("bookInfo",{}));
+            let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o=>$(o).html());
+            publisher.push('myrenta');
+            // let summary = {};
+            // $(".other-vols").toArray().forEach(o => summary[$(o).find("h4").text().trim()] = $(o).find(".intro-text p").text().trim());
             let info = {
                 bookId: urlMatch[1],
                 bookName: $('div.main>div.breadcrumbs>a:last').html(),
-                author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').html()
+                author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').html(),
+                publisher: publisher,
+                tag: $('.btn-tag').toArray().map(o=>$(o).html()),
+                // summary: summary,
+                summarys: $(".other-vols").toArray().map(o => {
+                    return {title: $(o).find("h4").text().trim(), summary: $(o).find(".intro-text p").text().trim()}
+                })
             };
             GM_setValue("bookInfo", info);
             let htmlEscape = coofoUtils.commonUtils.xss.htmlEscape;
@@ -129,6 +139,29 @@
                 title: title,
                 itemId: urlMatch[3]
             }, bookInfo);
+
+            //ComicInfo.xml
+            let fileName = tools.myrenta.downloadHelp.fileNameService.getFileName(Object.assign({
+                index: "ComicInfo",
+                suffix: ".xml"
+            }, baseInfo));
+            let summary = '';
+            baseInfo.summarys.forEach(o=>{
+                if (o.title.startsWith(originalTitle)) {
+                    summary = o.summary;
+                }
+            });
+            let xml = coofoUtils.comicInfoUtils.create({
+                Series: baseInfo.bookName,
+                Title: baseInfo.title,
+                // Number: Number(infoEx.idx) + 1 + '',
+                Summary: summary,
+                Writer: baseInfo.author,
+                Publisher: baseInfo.publisher.join(','),
+                Tags: baseInfo.tag.join(','),
+                LanguageISO:'zh'
+            });
+            tools.runtime.downloadTask.zip.file(fileName, xml);
 
             tools.myrenta.api.getBookInfo(urlMatch[1], urlMatch[2], function (bookInfo) {
                 baseInfo.prdId = bookInfo.prd_id;

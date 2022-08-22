@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.14
+// @version      0.0.15
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -136,7 +136,7 @@
                                         break;
                                     default:
                                         let indexMatch = ext.match(/index([0-9]+)/);
-                                        if (indexMatch !== null) {
+                                        if (indexMatch !== null && (typeof value === "number" || ('' + value).match(/^\d+$/))) {
                                             value = coofoUtils.commonUtils.format.num.fullNum(value, Number(indexMatch[1]));
                                         }
                                         break;
