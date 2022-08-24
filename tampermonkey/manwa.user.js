@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.9
+// @version      0.1.10
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -89,12 +89,33 @@
         summary: $(".detail-desc").text()
     };
 
-    $("a.detail-bottom-btn").after('<a id="user_js_download" class="detail-bottom-btn">⬇下载</a>');
+    $("a.detail-bottom-btn").after('<a id="user_js_download" class="detail-bottom-btn" style="width: auto;padding: 0 15px;">⬇下载</a>');
 
     let btn = $("#user_js_download");
+    //添加编辑按钮
+    btn.after('<a id="user_js_edit" class="detail-bottom-btn" style="width: auto;padding: 0 15px;">删除项</a>');
+    $("#user_js_edit").click(function () {
+        let editBtn = $("#user_js_edit");
+        if (editBtn.text() === "删除项") {
+            editBtn.text("确定");
+        } else {
+            editBtn.text("删除项");
+        }
+    });
+
+    $("li[idx]").click(function () {
+        if ($("#user_js_edit").text() === "删除项") {
+            return true;
+        } else {
+            this.remove();
+            return false;
+        }
+    });
+
     tools.runtime.downloadTask.showMsg = function (msg) {
         btn.html(msg);
     };
+
     btn.click(function () {
         if (tools.runtime.nowDownloading) return;
         tools.runtime.nowDownloading = true;
