@@ -23,28 +23,39 @@
     GM_registerMenuCommand("生成 ComicInfo.xml", function () {
         let tag = {};
         $("#taglist tr").toArray().forEach(o => {
-            let tagGroup = $(o).find("td.tc").text().replace(":","");
-            let tags = $(o).find("div>a").toArray().map(o=>$(o).text());
+            let tagGroup = $(o).find("td.tc").text().replace(":", "");
+            let tags = $(o).find("div>a").toArray().map(o => $(o).text());
             tag[tagGroup] = tags;
         });
 
         let info = {
-            bigTitle:$("#gn").text(),
-            smallTitle:$("#gj").text(),
-            uploader:$("#gdn>a").text(),
-            tag:tag,
-            language:$("#gdd tr:contains(Language) td.gdt2").text().replace(/^([a-zA-Z]+).*$/,'$1')
+            bigTitle: $("#gn").text().trim(),
+            smallTitle: $("#gj").text(),
+            uploader: $("#gdn>a").text(),
+            tag: tag,
+            language: $("#gdd tr:contains(Language) td.gdt2").text().replace(/^([a-zA-Z]+).*$/, '$1')
         };
         console.log(info);
 
+        let tags = [];
+        for (let key in info.tag) {
+            if (info.tag.hasOwnProperty(key) && !['artist'].includes(key)) {
+                tags = tags.concat(info.tag[key]);
+            }
+        }
 
 
         let xmlInfo = {
+            Series: info.smallTitle ? info.smallTitle : info.bigTitle,
+            Summary: info.bigTitle,
+            Writer: info.tag.artist,
             Publisher: ['e-hentai', info.uploader],
-            LanguageISO: tools.getLanguageISO(info.language)
+            Tags: tags,
+            LanguageISO: tools.getLanguageISO([info.language])
         };
 
         let xml = coofoUtils.comicInfoUtils.create(xmlInfo);
+        coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(xml, 'ComicInfo.xml');
     })
 
 })((function () {
