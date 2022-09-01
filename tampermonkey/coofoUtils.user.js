@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.15
+// @version      0.1.0
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -328,16 +328,15 @@
                             getRuntime: function () {
                                 return this.runtime;
                             },
-                            addTask: function (exec, taskInfo, lastRetryTimes) {
+                            addTask: function (exec, lastRetryTimes) {
                                 let taskItem = {
-                                    taskInfo: taskInfo,
                                     handler: null,
                                     complete: false,
                                     lastFinishTime: 0,
                                     lastRetryTimes: lastRetryTimes + 1,
                                     exec: function (onTaskFinish) {
                                         this.onTaskFinish = onTaskFinish;
-                                        exec(this.taskInfo, this);
+                                        exec(this);
                                     },
                                     success: function () {
                                         this.handler = null;
