@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.14
+// @version      0.1.0
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -12,7 +12,7 @@
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html(\?.*)?$/
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1084326
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1088510
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -29,14 +29,15 @@
     let url = window.location.href;
 
 
-    setting.def={};
+    setting.def = {};
+    setting.def.imageNameTemplate = "${index_index4}";
     /**
      * 文件名格式（包括路径）
      * ${itemId}       漫画ID
      * ${title}        漫画名
      * ${index}        插图序号
      */
-    setting.def.fileNameTemplate = "[myrenta]/${bookId_squareBracket}${author_squareBracket}${bookName_path}${itemId_squareBracket}${title}/${index_index4}";
+    setting.def.cbzNameTemplate = "[myrenta]/${bookId_squareBracket}${author_squareBracket}${bookName_path}${itemId_squareBracket}${title}";
 
     /**
      * zip文件名格式（包括路径）
@@ -46,10 +47,9 @@
 
     //设置按钮
     GM_registerMenuCommand("文件名设置", function () {
-        let html = `文件名格式<br/>
-                        <input id="fileNameTemplate" style="width: 90%;"><br/>
-                        压缩包名格式<br/>
-                        <input id="zipNameTemplate" style="width: 90%;"><br/>
+        let html = `图片名格式<br/><input id="imageNameTemplate" style="width: 90%;"><br/>
+                    cbz包名格式<br/><input id="cbzNameTemplate" style="width: 90%;"><br/>
+                    压缩包名格式<br/><input id="zipNameTemplate" style="width: 90%;"><br/>
                         <!--<button id="saveTemplate">保存</button><button id="resetTemplate">默认值</button>-->`;
         Swal.fire({
             title: '命名模板设置',
@@ -82,7 +82,8 @@
         }).then((result) => {
             if (result.isConfirmed) {
                 let templateSetting = {
-                    fileNameTemplate: $('#fileNameTemplate').val(),
+                    imageNameTemplate: $('#imageNameTemplate').val(),
+                    cbzNameTemplate: $('#cbzNameTemplate').val(),
                     zipNameTemplate: $('#zipNameTemplate').val()
                 };
                 GM_setValue("templateSetting", templateSetting);
@@ -90,23 +91,11 @@
                 GM_deleteValue("templateSetting");
             }
         });
-        let templateSetting = GM_getValue("templateSetting", {
-            fileNameTemplate: setting.def.fileNameTemplate,
-            zipNameTemplate: setting.def.zipNameTemplate
-        });
-        $('#fileNameTemplate').val(templateSetting.fileNameTemplate);
+        let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
+
+        $('#imageNameTemplate').val(templateSetting.imageNameTemplate);
+        $('#cbzNameTemplate').val(templateSetting.cbzNameTemplate);
         $('#zipNameTemplate').val(templateSetting.zipNameTemplate);
-        // $('#saveTemplate').click(function () {
-        //     let templateSetting = {
-        //         fileNameTemplate: $('#fileNameTemplate').val(),
-        //         zipNameTemplate: $('#zipNameTemplate').val()
-        //     };
-        //     GM_setValue("templateSetting", templateSetting);
-        // });
-        // $('#resetTemplate').click(function () {
-        //     $('#fileNameTemplate').val(setting.def.fileNameTemplate);
-        //     $('#zipNameTemplate').val(setting.def.zipNameTemplate);
-        // });
 
     });
 
@@ -117,7 +106,7 @@
 
         $('#saveBookInfo').click(function () {
             // console.log(GM_getValue("bookInfo",{}));
-            let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o=>$(o).html());
+            let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o => $(o).html());
             publisher.push('myrenta');
             // let summary = {};
             // $(".other-vols").toArray().forEach(o => summary[$(o).find("h4").text().trim()] = $(o).find(".intro-text p").text().trim());
@@ -126,7 +115,7 @@
                 bookName: $('div.main>div.breadcrumbs>a:last').html(),
                 author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').html(),
                 publisher: publisher,
-                tag: $('.btn-tag').toArray().map(o=>$(o).html()),
+                tag: $('.btn-tag').toArray().map(o => $(o).html()),
                 // summary: summary,
                 summarys: $(".other-vols").toArray().map(o => {
                     return {title: $(o).find("h4").text().trim(), summary: $(o).find(".intro-text p").text().trim()}
@@ -184,14 +173,14 @@
             if (tools.runtime.nowDownloading) return;
             tools.runtime.nowDownloading = true;
 
-            tools.runtime.downloadTask.zip = new JSZip();
+            let context = tools.runtime.downloadTask;
+            context.items = [];
+            context.zip = new JSZip();
+            context.bookInfo = bookInfo;
 
-            let generateTask = coofoUtils.service.task.create();
-            let downloadTask = coofoUtils.service.task.create();
-            tools.runtime.downloadTask.generateTask = generateTask;
-            tools.runtime.downloadTask.downloadTask = downloadTask;
 
             let originalTitle = $("p.title span").html();
+            bookInfo.originalTitle = originalTitle;
             let title = originalTitle;
             if ("bookName" in bookInfo) {
                 let index = 0;
@@ -204,64 +193,117 @@
                 }
                 title = title.substring(index).trim();
             }
-            let baseInfo = Object.assign({
-                originalTitle: originalTitle,
-                title: title,
-                itemId: urlMatch[3]
-            }, bookInfo);
 
             //ComicInfo.xml
-            let fileName = tools.myrenta.downloadHelp.fileNameService.getFileName(Object.assign({
-                index: "ComicInfo",
-                suffix: ".xml"
-            }, baseInfo));
             let summary = '';
-            baseInfo.summarys.forEach(o=>{
-                if (o.title.startsWith(originalTitle)) {
-                    summary = o.summary;
-                }
-            });
+            if (context.bookInfo.summarys !== null && context.bookInfo.summarys !== undefined) {
+                context.bookInfo.summarys.forEach(o => {
+                    if (o.title.startsWith(originalTitle)) {
+                        summary = o.summary;
+                    }
+                });
+            }
+
             let xml = coofoUtils.comicInfoUtils.create({
-                Series: baseInfo.bookName,
-                Title: baseInfo.title,
-                // Number: Number(infoEx.idx) + 1 + '',
+                Series: context.bookInfo.bookName,
+                Title: context.bookInfo.title,
                 Summary: summary,
-                Writer: baseInfo.author,
-                Publisher: baseInfo.publisher.join(','),
-                Tags: baseInfo.tag.join(','),
-                LanguageISO:'zh'
+                Writer: context.bookInfo.author,
+                Publisher: context.bookInfo.publisher.join(','),
+                Tags: context.bookInfo.tag.join(','),
+                LanguageISO: 'zh'
             });
-            tools.runtime.downloadTask.zip.file(fileName, xml);
+
+            let item = {
+                parent: context,
+                itemInfo: {
+                    originalTitle: originalTitle,
+                    title: title,
+                    itemId: urlMatch[3]
+                },
+                comicInfo: xml,
+                images: [],
+                cbz: new JSZip()
+            };
+            context.items.push(item);
 
             tools.myrenta.api.getBookInfo(urlMatch[1], urlMatch[2], function (bookInfo) {
-                baseInfo.prdId = bookInfo.prd_id;
+                item.itemInfo.prdId = bookInfo.prd_id;
                 for (let i = 0; i < bookInfo.dimension.length; i++) {
-                    let info = Object.assign({
-                        ext: bookInfo.ext,
-                        key: bookInfo.key,
-                        page: i + 1,
-                        index: i + 1,
-                        suffix: "." + bookInfo.ext,
-                        downloadTask: downloadTask
-                    }, baseInfo);
-                    generateTask.api.addTask(tools.myrenta.downloadHelp.generateTask, info, setting.downloadRetryTimes);
+                    let image = {
+                        parent: item,
+                        imageInfo: {
+                            ext: bookInfo.ext,
+                            key: bookInfo.key,
+                            page: i + 1,
+                            index: i + 1,
+                            suffix: "." + bookInfo.ext
+                        },
+                        imageFile: null
+                    };
+                    item.images.push(image);
                 }
 
-                generateTask.runtime.callBack = function () {
+                //获取下载地址
+                let generateTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+                    if (retryTimesOutNum > 0) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: '下载出错',
+                            text: '解析地址 ' + completeNum + ' - ' + retryTimesOutNum
+                        });
+                        return;
+                    }
+                    //执行下载操作
+                    let downloadTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+                        if (retryTimesOutNum > 0) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: '下载出错',
+                                text: '下载 ' + completeNum + ' - ' + retryTimesOutNum
+                            });
+                            return;
+                        }
+                        context.items.forEach(item => {
+                            //创建cbz
+                            tools.myrenta.downloadHelp.generateCbz(item, () => {
+                                let complete = true;
+                                item.parent.items.forEach(item => {
+                                    if (item.cbzFile === null || item.cbzFile === undefined) {
+                                        complete = false;
+                                    }
+                                });
+                                if (complete === true) {
+                                    //创建zip
+                                    tools.myrenta.downloadHelp.generateZip(context, zipFile => {
+                                        let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
+                                        coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
+                                        tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
+                                    });
+                                }
+                            })
+                        });
+                    });
+                    tools.runtime.downloadTask.downloadTask = downloadTask;
+
+                    context.items.forEach(item => {
+                        item.images.forEach(image => {
+                            downloadTask.api.addTask(taskItem => tools.myrenta.downloadHelp.downloadTask(taskItem, image), setting.downloadRetryTimes);
+                        })
+                    });
+
                     for (let i = 0; i < setting.threadNum; i++) {
                         downloadTask.api.exec(i);
                     }
-                };
+                });
+                tools.runtime.downloadTask.generateTask = generateTask;
 
-                downloadTask.runtime.callBack = function (completeNum, retryTimesOutNum) {
-                    tools.runtime.downloadTask.zip.generateAsync({type: "blob"}).then(function (content) {
-                        let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, baseInfo) + ".zip";
-
-                        coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
-                        tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
-                    });
-                };
-
+                // console.log(setting)
+                context.items.forEach(item => {
+                    item.images.forEach(image => {
+                        generateTask.api.addTask(taskItem => tools.myrenta.downloadHelp.generateTask(taskItem, image), setting.downloadRetryTimes);
+                    })
+                });
                 for (let i = 0; i < setting.threadNum; i++) {
                     generateTask.api.exec(i);
                 }
@@ -271,14 +313,11 @@
         };
 
 
-
         btn.click(function () {
 
-            let templateSetting = GM_getValue("templateSetting", {
-                fileNameTemplate: setting.def.fileNameTemplate,
-                zipNameTemplate: setting.def.zipNameTemplate
-            });
-            setting.fileNameTemplate = templateSetting.fileNameTemplate;
+            let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
+            setting.imageNameTemplate = templateSetting.imageNameTemplate;
+            setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
             setting.zipNameTemplate = templateSetting.zipNameTemplate;
 
             let info = GM_getValue("bookInfo", {});
@@ -471,12 +510,11 @@
                 }
             },
             downloadHelp: {
-                generateTask: function (taskInfo, taskItem) {
-                    // console.log(taskInfo);
-                    tools.myrenta.api.getImgUrl(taskInfo.ext, taskInfo.prdId, taskInfo.page, 6, function (request) {
-                        let imgUrlJson = CryptoJS.AES.decrypt(request, taskInfo.key, {format: CryptoJSAesJson}).toString(CryptoJS.enc.Utf8);
-                        taskInfo.imgUrl = JSON.parse(imgUrlJson);
-                        taskInfo.downloadTask.api.addTask(tools.myrenta.downloadHelp.downloadTask, taskInfo, tools.setting.downloadRetryTimes);
+                generateTask: function (taskItem, image) {
+                    // console.log(image);
+                    tools.myrenta.api.getImgUrl(image.imageInfo.ext, image.parent.itemInfo.prdId, image.imageInfo.page, 6, function (request) {
+                        let imgUrlJson = CryptoJS.AES.decrypt(request, image.imageInfo.key, {format: CryptoJSAesJson}).toString(CryptoJS.enc.Utf8);
+                        image.imgUrl = JSON.parse(imgUrlJson);
 
                         taskItem.success();
                         tools.runtime.downloadTask.refreshGenerateStatus();
@@ -484,13 +522,11 @@
                         taskItem.failed();
                     });
                 },
-                downloadTask: function (taskInfo, taskItem) {
-                    let fileName = tools.myrenta.downloadHelp.fileNameService.getFileName(taskInfo);
-
+                downloadTask: function (taskItem, image) {
                     if (true) {
                         //get
                         let request = new XMLHttpRequest();
-                        request.open("GET", taskInfo.imgUrl);
+                        request.open("GET", image.imgUrl);
                         request.responseType = 'blob';
                         request.onload = function () {
                             if (this.status === 200) {
@@ -506,7 +542,8 @@
                                         // var blob = new Blob( [ arrayBufferView ] );
 
                                         // let arrayBuffer = tools.myrenta.utils.imgDecode(arrayBufferView, taskInfo.key);
-                                        tools.runtime.downloadTask.zip.file(fileName, arrayBufferView);
+                                        image.imageFile = arrayBufferView;
+
                                         taskItem.success();
                                         tools.runtime.downloadTask.refreshDownLoadStatus();
                                     }
@@ -525,6 +562,46 @@
 
                     }
 
+                },
+                generateCbz: function (item, onFinished) {
+                    if (item.images.length <= 0) {
+                        //当不存在图片时
+                        item.cbz = null;
+                        onFinished();
+                    } else {
+                        item.images.forEach(image => {
+                            let info = Object.assign({}, image.parent.parent.bookInfo, image.parent.itemInfo, image.imageInfo);
+                            let name = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.imageNameTemplate, info) + image.imageInfo.suffix;
+                            item.cbz.file(name, image.imageFile);
+                            //释放
+                            image.imageFile = null;
+                        });
+                        item.cbz.file("ComicInfo.xml", item.comicInfo);
+                        item.cbz.generateAsync({type: "blob", compression: "STORE"})
+                            .then(context => {
+                                item.cbzFile = context;
+                                //释放
+                                item.cbz = null;
+                                onFinished();
+                            });
+                    }
+                },
+                generateZip: function (context, onFinished) {
+                    if (context.items.length <= 0) {
+                        //当不存在子项时
+                        context.zip = null;
+                        onFinished();
+                    } else {
+                        context.items.forEach(item => {
+                            let info = Object.assign({}, item.parent.bookInfo, item.itemInfo);
+                            let name = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.cbzNameTemplate, info) + ".cbz";
+                            context.zip.file(name, item.cbzFile);
+                            //释放
+                            item.cbzFile = null;
+                        });
+                        context.zip.generateAsync({type: "blob", compression: "STORE"})
+                            .then(onFinished);
+                    }
                 },
                 fileNameService: {
                     getFileName: function (downloadTaskInfo) {

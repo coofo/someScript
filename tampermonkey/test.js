@@ -12,7 +12,7 @@
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html(\?.*)?$/
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1084326
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1088510
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -29,7 +29,7 @@
     let url = window.location.href;
 
 
-    setting.def={};
+    setting.def = {};
     setting.def.imageNameTemplate = "${index_index4}";
     /**
      * 文件名格式（包括路径）
@@ -106,7 +106,7 @@
 
         $('#saveBookInfo').click(function () {
             // console.log(GM_getValue("bookInfo",{}));
-            let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o=>$(o).html());
+            let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o => $(o).html());
             publisher.push('myrenta');
             // let summary = {};
             // $(".other-vols").toArray().forEach(o => summary[$(o).find("h4").text().trim()] = $(o).find(".intro-text p").text().trim());
@@ -115,7 +115,7 @@
                 bookName: $('div.main>div.breadcrumbs>a:last').html(),
                 author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').html(),
                 publisher: publisher,
-                tag: $('.btn-tag').toArray().map(o=>$(o).html()),
+                tag: $('.btn-tag').toArray().map(o => $(o).html()),
                 // summary: summary,
                 summarys: $(".other-vols").toArray().map(o => {
                     return {title: $(o).find("h4").text().trim(), summary: $(o).find(".intro-text p").text().trim()}
@@ -180,6 +180,7 @@
 
 
             let originalTitle = $("p.title span").html();
+            bookInfo.originalTitle = originalTitle;
             let title = originalTitle;
             if ("bookName" in bookInfo) {
                 let index = 0;
@@ -195,11 +196,14 @@
 
             //ComicInfo.xml
             let summary = '';
-            context.bookInfo.summarys.forEach(o=>{
-                if (o.title.startsWith(originalTitle)) {
-                    summary = o.summary;
-                }
-            });
+            if (context.bookInfo.summarys !== null && context.bookInfo.summarys !== undefined) {
+                context.bookInfo.summarys.forEach(o => {
+                    if (o.title.startsWith(originalTitle)) {
+                        summary = o.summary;
+                    }
+                });
+            }
+
             let xml = coofoUtils.comicInfoUtils.create({
                 Series: context.bookInfo.bookName,
                 Title: context.bookInfo.title,
@@ -207,7 +211,7 @@
                 Writer: context.bookInfo.author,
                 Publisher: context.bookInfo.publisher.join(','),
                 Tags: context.bookInfo.tag.join(','),
-                LanguageISO:'zh'
+                LanguageISO: 'zh'
             });
 
             let item = {
@@ -218,9 +222,9 @@
                     itemId: urlMatch[3]
                 },
                 comicInfo: xml,
-                images:[],
+                images: [],
                 cbz: new JSZip()
-            }
+            };
             context.items.push(item);
 
             tools.myrenta.api.getBookInfo(urlMatch[1], urlMatch[2], function (bookInfo) {
@@ -228,22 +232,38 @@
                 for (let i = 0; i < bookInfo.dimension.length; i++) {
                     let image = {
                         parent: item,
-                        imageInfo:{
+                        imageInfo: {
                             ext: bookInfo.ext,
                             key: bookInfo.key,
                             page: i + 1,
                             index: i + 1,
                             suffix: "." + bookInfo.ext
                         },
-                        imageFile:null
+                        imageFile: null
                     };
                     item.images.push(image);
                 }
 
                 //获取下载地址
                 let generateTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+                    if (retryTimesOutNum > 0) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: '下载出错',
+                            text: '解析地址 ' + completeNum + ' - ' + retryTimesOutNum
+                        });
+                        return;
+                    }
                     //执行下载操作
                     let downloadTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+                        if (retryTimesOutNum > 0) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: '下载出错',
+                                text: '下载 ' + completeNum + ' - ' + retryTimesOutNum
+                            });
+                            return;
+                        }
                         context.items.forEach(item => {
                             //创建cbz
                             tools.myrenta.downloadHelp.generateCbz(item, () => {
@@ -278,12 +298,12 @@
                 });
                 tools.runtime.downloadTask.generateTask = generateTask;
 
+                // console.log(setting)
                 context.items.forEach(item => {
                     item.images.forEach(image => {
                         generateTask.api.addTask(taskItem => tools.myrenta.downloadHelp.generateTask(taskItem, image), setting.downloadRetryTimes);
                     })
                 });
-
                 for (let i = 0; i < setting.threadNum; i++) {
                     generateTask.api.exec(i);
                 }
@@ -291,7 +311,6 @@
             });
 
         };
-
 
 
         btn.click(function () {
@@ -492,10 +511,10 @@
             },
             downloadHelp: {
                 generateTask: function (taskItem, image) {
-                    // console.log(taskInfo);
+                    // console.log(image);
                     tools.myrenta.api.getImgUrl(image.imageInfo.ext, image.parent.itemInfo.prdId, image.imageInfo.page, 6, function (request) {
                         let imgUrlJson = CryptoJS.AES.decrypt(request, image.imageInfo.key, {format: CryptoJSAesJson}).toString(CryptoJS.enc.Utf8);
-                        image.imageInfo.imgUrl = JSON.parse(imgUrlJson);
+                        image.imgUrl = JSON.parse(imgUrlJson);
 
                         taskItem.success();
                         tools.runtime.downloadTask.refreshGenerateStatus();
@@ -507,7 +526,7 @@
                     if (true) {
                         //get
                         let request = new XMLHttpRequest();
-                        request.open("GET", taskInfo.imgUrl);
+                        request.open("GET", image.imgUrl);
                         request.responseType = 'blob';
                         request.onload = function () {
                             if (this.status === 200) {
