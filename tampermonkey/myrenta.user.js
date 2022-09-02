@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.0
+// @version      0.1.1
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -601,6 +601,8 @@
                         });
                         context.zip.generateAsync({type: "blob", compression: "STORE"})
                             .then(onFinished);
+                        //释放
+                        context.zip = null;
                     }
                 },
                 fileNameService: {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.10
+// @version      0.2.0
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -9,15 +9,20 @@
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://manwa.(me|live|vip|fun)/book/\d+/
+// @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1083480
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1088510
 // @connect      img.manwa.me
 // @connect      img.manwa.live
 // @connect      img.manwa.vip
 // @connect      img.manwa.fun
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_deleteValue
+// @grant        GM_registerMenuCommand
 // ==/UserScript==
 
 
@@ -25,69 +30,94 @@
     'use strict';
     //setting
     let setting = tools.setting;
-    /**
-     * 文件名格式（包括路径）
-     * ${bookId}        漫画ID
-     * ${bookName}      漫画名
-     * ${selectType}    water/adult
-     * ${chapterId}     章节ID
-     * ${chapterName}   章节名
-     * ${index}         插图序号
-     */
-    setting.fileNameTemplate = "[manwa]/[${bookId}]${bookName}(${selectType})/[${idx_index3}][${chapterId}]${chapterName}/${index}";
 
-    /**
-     * zip文件名格式（包括路径）
-     */
-    setting.zipNameTemplate = "[manwa][${bookId}]${bookName}";
+    Object.assign(setting, {
+        def: {
+            imageNameTemplate:"${index}",
+            /**
+             * 文件名格式（包括路径）
+             */
+            cbzNameTemplate: "[manwa]/[${bookId}]${bookName}(${selectType})/[${idx_index3}][${chapterId}]${chapterName}",
 
-    /**
-     * 下载线程数量
-     * @type {number}
-     */
-    setting.threadNum = 3;
-    /**
-     * 下载模式
-     * single：将图片文件单个下载（如果需要保存的文件有文件夹结构，则需要将tampermonkey下载模式调整为【浏览器API】）
-     * zip：将图片打成zip包下载
-     */
-    setting.downloadMode = "zip";
+            /**
+             * zip文件名格式（包括路径）
+             */
+            zipNameTemplate: "[manwa][${bookId}]${bookName}"
+        },
 
-    /**
-     * 下载失败重试次数
-     * @type {number}
-     */
-    setting.downloadRetryTimes = 2;
+        /**
+         * 下载线程数量
+         * @type {number}
+         */
+        threadNum: 5,
 
-    /**
-     * all：我全都要
-     * water：清水优先
-     * adult：完整优先
-     */
-    setting.selectType = "all";
+        /**
+         * 下载失败重试次数
+         * @type {number}
+         */
+        downloadRetryTimes: 2,
 
-    //setting end
+        /**
+         * all：我全都要
+         * water：清水优先
+         * adult：完整优先
+         */
+        selectType: "all"
+    });
 
-    console.log(GM_info.downloadMode);
+    //设置按钮
+    GM_registerMenuCommand("文件名设置", function () {
+        let html = `图片名格式<br/><input id="imageNameTemplate" style="width: 90%;"><br/>
+                    cbz包名格式<br/><input id="cbzNameTemplate" style="width: 90%;"><br/>
+                    压缩包名格式<br/><input id="zipNameTemplate" style="width: 90%;"><br/>
+                        <!--<button id="saveTemplate">保存</button><button id="resetTemplate">默认值</button>-->`;
+        Swal.fire({
+            title: '命名模板设置',
+            html: html,
+            footer: `<div><table border="1">
+                             <tr><td>巨集</td><td>说明</td></tr>
+                             <tr><td>\${bookId}</td><td>漫画ID</td></tr>
+                             <tr><td>\${bookName}</td><td>漫画名</td></tr>
+                             <tr><td>\${selectType}</td><td>water/adult/all</td></tr>
+                             <tr><td>\${chapterId}</td><td>章节ID</td></tr>
+                             <tr><td>\${chapterName}</td><td>章节名</td></tr>
+                             <tr><td>\${index}</td><td>插图序号</td></tr>
+                          </table><br>
+                          <table border="1">
+                             <tr><td>后缀</td><td>说明（取到值时才生效，取不到则替换为空字符串）</td></tr>
+                             <tr><td>empty</td><td>未取到时填充为空字符串</td></tr>
+                             <tr><td>parenthesis</td><td>圆括号</td></tr>
+                             <tr><td>squareBracket</td><td>方括号</td></tr>
+                             <tr><td>curlyBracket</td><td>大括号</td></tr>
+                             <tr><td>path</td><td>后加文件夹分隔符</td></tr>
+                             <tr><td>index2</td><td>向前添0补全至2位</td></tr>
+                             <tr><td>index3</td><td>向前添0补全至3位（以此类推）</td></tr>
+                         </table></div>`,
+            confirmButtonText: '保存',
+            showDenyButton: true,
+            denyButtonText: `恢复默认`,
+            showCancelButton: true,
+            cancelButtonText: '取消'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                let templateSetting = {
+                    imageNameTemplate: $('#imageNameTemplate').val(),
+                    cbzNameTemplate: $('#cbzNameTemplate').val(),
+                    zipNameTemplate: $('#zipNameTemplate').val()
+                };
+                GM_setValue("templateSetting", templateSetting);
+            } else if (result.isDenied) {
+                GM_deleteValue("templateSetting");
+            }
+        });
+        let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
 
-    //首页基础信息
-    let url = window.location.href;
-    let urlMatch = url.match(tools.manwa.regex.bookUrl);
+        $('#imageNameTemplate').val(templateSetting.imageNameTemplate);
+        $('#cbzNameTemplate').val(templateSetting.cbzNameTemplate);
+        $('#zipNameTemplate').val(templateSetting.zipNameTemplate);
 
-    // let tagList = $(".info-tag-span");
-    // let tagStrList = [];
-    // for (let i = 0; i < tagList.length; i++) {
-    //     tagStrList.push($(tagList[i]).html());
-    // }
+    });
 
-    let baseInfo = {
-        bookId: urlMatch[1],
-        bookName: $("div.detail-main p.detail-main-info-title").html(),
-        author: $("p.detail-main-info-author:contains(作者) a").toArray().map(o => $(o).html()).join(','),
-        // tag: tagStrList.join(','),
-        tag: $(".info-tag-span").toArray().map(o => $(o).html()).join(','),
-        summary: $(".detail-desc").text()
-    };
 
     $("a.detail-bottom-btn").after('<a id="user_js_download" class="detail-bottom-btn" style="width: auto;padding: 0 15px;">⬇下载</a>');
 
@@ -120,94 +150,201 @@
         if (tools.runtime.nowDownloading) return;
         tools.runtime.nowDownloading = true;
 
+        Object.assign(setting, setting.def, GM_getValue("templateSetting", {}));
 
-        if (tools.setting.downloadMode === "zip") {
-            tools.runtime.downloadTask.zip = new JSZip();
-        }
+        let context = tools.runtime.downloadTask;
+
+        //首页基础信息
+        let url = window.location.href;
+        let urlMatch = url.match(tools.manwa.regex.bookUrl);
+
+        Object.assign(context, {
+            zip: new JSZip(),
+            types: [],
+            bookInfo: {
+                bookId: urlMatch[1],
+                bookName: $("div.detail-main p.detail-main-info-title").html(),
+                author: $("p.detail-main-info-author:contains(作者) a").toArray().map(o => $(o).html()).join(','),
+                tag: $(".info-tag-span").toArray().map(o => $(o).html()).join(','),
+                summary: $(".detail-desc").text()
+            },
+            checkCbz: function () {
+                let mReturn = true;
+                context.types.forEach(type => {
+                    if (type.checkCbz() !== true) mReturn = false;
+                })
+                return mReturn;
+            }
+        });
 
         let adultList = $("ul#adult-list-select li");
         let waterList = $("ul#detail-list-select li");
-        let generateTask = coofoUtils.service.task.create();
-        let downloadTask = coofoUtils.service.task.create();
-        tools.runtime.downloadTask.generateTask = generateTask;
-        tools.runtime.downloadTask.downloadTask = downloadTask;
-        let generateTaskFunc = function (taskInfo, taskItem) {
-            setTimeout(() => tools.manwa.downloadHelp.generateTask(taskInfo, taskItem), 500);
-        };
-
         if (setting.selectType === "all" || setting.selectType === "adult" || waterList.length <= 0) {
             //完整
-            let baseAdultInfo = Object.assign({
-                selectType: "adult",
-                downloadTask: downloadTask,
-            }, baseInfo);
+            let adultType = {
+                parent: context,
+                typeInfo: {
+                    selectType: "adult"
+                },
+                chapters: [],
+                checkCbz: function () {
+                    let mReturn = true;
+                    adultType.chapters.forEach(chapter => {
+                        if (chapter.checkCbz() !== true) mReturn = false;
+                    });
+                    return mReturn;
+                }
+            };
+            context.types.push(adultType);
 
             for (let i = 0; i < adultList.length; i++) {
                 let li = $(adultList[i]);
                 let idx = li.attr("idx");
                 let chapterId = li.find('a.chapteritem').attr("href").match(/(\d+)$/)[1];
+                let chapterName = li.find('a.chapteritem').attr("title");
 
-                let info = Object.assign({
-                    chapterId: chapterId,
-                    idx: idx
-                }, baseAdultInfo);
-
-                generateTask.api.addTask(generateTaskFunc, info, setting.downloadRetryTimes);
+                let chapter = {
+                    parent: adultType,
+                    chapterInfo: {
+                        chapterId: chapterId,
+                        chapterName: chapterName,
+                        idx: idx
+                    },
+                    images: [],
+                    cbz: new JSZip(),
+                    comicInfo: coofoUtils.comicInfoUtils.create({
+                        Series: context.bookInfo.bookName,
+                        Title: chapterName,
+                        Number: Number(idx) + 1 + '',
+                        Summary: context.bookInfo.summary,
+                        Writer: context.bookInfo.author,
+                        Publisher: 'manwa',
+                        Tags: context.bookInfo.tag,
+                        LanguageISO: 'zh'
+                    }),
+                    checkCbz: () => {
+                        return chapter.cbzFile !== null && chapter.cbzFile !== undefined;
+                    }
+                };
+                adultType.chapters.push(chapter);
             }
         }
 
         if (setting.selectType === "all" || setting.selectType === "water" || adultList.length <= 0) {
             //清水
-            let baseWaterInfo = Object.assign({
-                selectType: "water",
-                downloadTask: downloadTask,
-            }, baseInfo);
+            let waterType = {
+                parent: context,
+                typeInfo: {
+                    selectType: "water"
+                },
+                chapters: [],
+                checkCbz: function () {
+                    let mReturn = true;
+                    waterType.chapters.forEach(chapter => {
+                        if (chapter.checkCbz() !== true) mReturn = false;
+                    });
+                    return mReturn;
+                }
+            };
+            context.types.push(waterType);
+
             for (let i = 0; i < waterList.length; i++) {
                 let li = $(waterList[i]);
                 let idx = li.attr("idx");
                 let chapterId = li.find('a.chapteritem').attr("href").match(/(\d+)$/)[1];
+                let chapterName = li.find('a.chapteritem').attr("title");
 
-                let info = Object.assign({
-                    chapterId: chapterId,
-                    idx: idx
-                }, baseWaterInfo);
+                let chapter = {
+                    parent: waterType,
+                    chapterInfo: {
+                        chapterId: chapterId,
+                        chapterName: chapterName,
+                        idx: idx
+                    },
+                    images: [],
+                    cbz: new JSZip(),
+                    comicInfo: coofoUtils.comicInfoUtils.create({
+                        Series: context.bookInfo.bookName,
+                        Title: chapterName,
+                        Number: Number(idx) + 1 + '',
+                        Summary: context.bookInfo.summary,
+                        Writer: context.bookInfo.author,
+                        Publisher: 'manwa',
+                        Tags: context.bookInfo.tag,
+                        LanguageISO: 'zh'
+                    }),
+                    checkCbz: () => {
+                        return chapter.cbzFile !== null && chapter.cbzFile !== undefined;
+                    }
+                }
+                waterType.chapters.push(chapter);
 
-                generateTask.api.addTask(generateTaskFunc, info, setting.downloadRetryTimes);
             }
         }
 
-
-        generateTask.runtime.callBack = function () {
-            let list = generateTask.runtime.taskList;
-            if (list.length <= 0) {
-                tools.runtime.downloadTask.showMsg("下载目标为0");
+        //获取下载地址
+        let generateTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+            if (retryTimesOutNum > 0) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '下载出错',
+                    text: '解析地址 ' + completeNum + ' - ' + retryTimesOutNum
+                });
                 return;
             }
-            downloadTask.runtime.callBack = function (completeNum, retryTimesOutNum) {
-                if (tools.setting.downloadMode === "zip") {
-                    tools.runtime.downloadTask.zip.generateAsync({type: "blob"}).then(function (content) {
-                        let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, baseInfo) + ".zip";
 
-                        coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(content, zipFileName);
-                        tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
+            //执行下载操作
+            let downloadTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+                if (retryTimesOutNum > 0) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '下载出错',
+                        text: '下载 ' + completeNum + ' - ' + retryTimesOutNum
                     });
+                    return;
                 }
-                tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
-            };
+                context.types
+                    .flatMap(type => type.chapters)
+                    .forEach(chapter => {
+                        tools.manwa.downloadHelp.generateCbz(chapter, () => {
+                            console.log(context.checkCbz())
+                            if (context.checkCbz() === true) {
+                                //创建zip
+                                tools.manwa.downloadHelp.generateZip(context, zipFile => {
+                                    let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
+                                    coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
+                                    tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
+                                });
+                            }
+                        })
+                    });
+            });
+            tools.runtime.downloadTask.downloadTask = downloadTask;
+
+            context.types
+                .flatMap(type => type.chapters)
+                .flatMap(chapter => chapter.images)
+                .forEach(image => downloadTask.api.addTask(taskItem => tools.manwa.downloadHelp.zipDownloadTask(taskItem, image), setting.downloadRetryTimes));
+
+
 
             for (let i = 0; i < setting.threadNum; i++) {
                 downloadTask.api.exec(i);
             }
-        };
+        });
+        tools.runtime.downloadTask.generateTask = generateTask;
+
+        context.types
+            .flatMap(type => type.chapters)
+            .forEach(chapter => generateTask.api.addTask(taskItem => setTimeout(() => tools.manwa.downloadHelp.generateTask(taskItem, chapter), 500), setting.downloadRetryTimes));
+
+        console.log(tools.runtime)
         for (let i = 0; i < 1; i++) {
             generateTask.api.exec(i);
         }
+
     });
 
-
-    // span.before('<span class="BtnBase UserInfoCmdFollow UserInfoCmdFollow_581115" style="margin-right: 10px;"  id="span_download_test">⬇下载测试</span>');
-    // $("#span_download_test").click(function () {
-    // });
 
 
 })((function () {
@@ -215,7 +352,7 @@
     const cache = {};
 
     const tools = {
-        setting: {pass: ""},
+        setting: {},
         runtime: {
             nowDownloading: false,
             downloadTask: {
@@ -339,9 +476,8 @@
                 },
             },
             downloadHelp: {
-                generateTask: function (taskInfo, taskItem) {
-                    tools.manwa.api.getImgUrl(taskInfo.chapterId, function (imgUrls, info) {
-
+                generateTask: function (taskItem, chapter) {
+                    tools.manwa.api.getImgUrl(chapter.chapterInfo.chapterId, function (imgUrls, info) {
                         for (let j = 0; j < imgUrls.length; j++) {
                             let imgUrl = imgUrls[j];
 
@@ -357,39 +493,15 @@
                                 suffix = "." + suffix;
                             }
                             let index = j + 1;
-                            let infoEx = Object.assign({
+                            chapter.images.push({
+                                parent: chapter,
                                 imgUrl: imgUrl,
-                                index: coofoUtils.commonUtils.format.num.fullNum(index, 3),
-                                suffix: suffix
-                            }, info, taskInfo);
-
-                            let downloadFunction;
-                            if (tools.setting.downloadMode === "single") {
-                                downloadFunction = tools.manwa.downloadHelp.singleDownloadTask;
-                            } else {
-
-                                if (imgUrls.length > 0) {
-                                    let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(Object.assign({
-                                        index: "ComicInfo",
-                                        suffix: ".xml"
-                                    }, info, taskInfo));
-                                    let xml = coofoUtils.comicInfoUtils.create({
-                                        Series: infoEx.bookName,
-                                        Title: infoEx.chapterName,
-                                        Number: Number(infoEx.idx) + 1 + '',
-                                        Summary: infoEx.summary,
-                                        Writer: infoEx.author,
-                                        Publisher: 'manwa',
-                                        Tags: infoEx.tag,
-                                        LanguageISO:'zh'
-
-                                    });
-                                    tools.runtime.downloadTask.zip.file(fileName, xml);
-                                }
-
-                                downloadFunction = tools.manwa.downloadHelp.zipDownloadTask;
-                            }
-                            taskInfo.downloadTask.api.addTask(downloadFunction, infoEx, tools.setting.downloadRetryTimes);
+                                imageInfo:{
+                                    index: coofoUtils.commonUtils.format.num.fullNum(index, 3),
+                                    suffix: suffix
+                                },
+                                imageFile: null
+                            });
                         }
 
                         taskItem.success();
@@ -398,33 +510,8 @@
                         taskItem.failed();
                     });
                 },
-                singleDownloadTask: function (taskInfo, taskItem) {
-                    let url = coofoUtils.commonUtils.format.url.fullUrl(taskInfo.imgUrl);
-                    let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(taskInfo);
-                    coofoUtils.tampermonkeyUtils.downloadHelp.toUser.asGMdownload(taskInfo.imgUrl, fileName, {
-                        gmDownload: {
-                            saveAs: false,
-                            onload: function () {
-                                taskItem.success();
-                                tools.runtime.downloadTask.refreshDownLoadStatus();
-                            },
-                            onerror: function (e) {
-                                console.error("GM_download error: " + url);
-                                console.error(e);
-                                taskItem.failed();
-                            },
-                            ontimeout: function (e) {
-                                console.error("GM_download timeout");
-                                console.error(e);
-                                taskItem.failed();
-                            }
-                        }
-                    });
-                },
-                zipDownloadTask: function (taskInfo, taskItem) {
-                    let url = coofoUtils.commonUtils.format.url.fullUrl(taskInfo.imgUrl);
-                    let fileName = tools.manwa.downloadHelp.fileNameService.getFileName(taskInfo);
-
+                zipDownloadTask: function (taskItem, image) {
+                    let url = coofoUtils.commonUtils.format.url.fullUrl(image.imgUrl);
                     let request = new XMLHttpRequest;
                     request.open("GET", url, !0);
                     request.responseType = "arraybuffer";
@@ -446,7 +533,7 @@
                                 }
                                 return a
                             };
-                            tools.runtime.downloadTask.zip.file(fileName, o(e));
+                            image.imageFile = o(e);
                             taskItem.success();
                             tools.runtime.downloadTask.refreshDownLoadStatus();
                         }else{
@@ -456,19 +543,46 @@
                         }
                     };
                     request.send();
+                },
+                generateCbz: function (chapter, onFinished) {
+                    if (chapter.images.length <= 0) {
+                        //当不存在图片时
+                        chapter.cbz = null;
+                        onFinished();
+                    } else {
+                        chapter.images.forEach(image => {
+                            let info = Object.assign({}, image.parent.parent.parent.bookInfo, image.parent.parent.typeInfo, image.parent.chapterInfo, image.imageInfo);
+                            let name = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.imageNameTemplate, info) + image.imageInfo.suffix;
+                            chapter.cbz.file(name, image.imageFile);
+                            //释放
+                            image.imageFile = null;
+                        });
+                        chapter.cbz.file("ComicInfo.xml", chapter.comicInfo);
+                        chapter.cbz.generateAsync({type: "blob", compression: "STORE"})
+                            .then(context => {
+                                chapter.cbzFile = context;
+                                //释放
+                                chapter.cbz = null;
+                                onFinished();
+                            });
+                    }
+                },
+                generateZip: function (context, onFinished) {
+                    context.types
+                        .flatMap(type => type.chapters)
+                        .forEach(chapter => {
+                            let info = Object.assign({}, chapter.parent.parent.bookInfo, chapter.parent.typeInfo, chapter.chapterInfo);
+                            let name = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.cbzNameTemplate, info) + ".cbz";
+                            context.zip.file(name, chapter.cbzFile);
+                            //释放
+                            chapter.cbzFile = null;
+                        });
 
 
-                    // coofoUtils.tampermonkeyUtils.downloadHelp.toBlob.asBlob(url, function (responseDetails) {
-                    //     if (responseDetails.status === 200) {
-                    //         tools.runtime.downloadTask.zip.file(fileName, responseDetails.response);
-                    //         taskItem.success();
-                    //         tools.runtime.downloadTask.refreshDownLoadStatus();
-                    //     } else {
-                    //         console.error("download error: " + url);
-                    //         console.error(responseDetails);
-                    //         taskItem.failed();
-                    //     }
-                    // })
+                    context.zip.generateAsync({type: "blob", compression: "STORE"})
+                        .then(onFinished);
+                    //释放
+                    context.zip = null;
                 },
                 fileNameService: {
                     getFileName: function (downloadTaskInfo) {
