@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.0
+// @version      0.2.1
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -167,13 +167,6 @@
                 author: $("p.detail-main-info-author:contains(作者) a").toArray().map(o => $(o).html()).join(','),
                 tag: $(".info-tag-span").toArray().map(o => $(o).html()).join(','),
                 summary: $(".detail-desc").text()
-            },
-            checkCbz: function () {
-                let mReturn = true;
-                context.types.forEach(type => {
-                    if (type.checkCbz() !== true) mReturn = false;
-                })
-                return mReturn;
             }
         });
 
@@ -186,14 +179,7 @@
                 typeInfo: {
                     selectType: "adult"
                 },
-                chapters: [],
-                checkCbz: function () {
-                    let mReturn = true;
-                    adultType.chapters.forEach(chapter => {
-                        if (chapter.checkCbz() !== true) mReturn = false;
-                    });
-                    return mReturn;
-                }
+                chapters: []
             };
             context.types.push(adultType);
 
@@ -221,10 +207,7 @@
                         Publisher: 'manwa',
                         Tags: context.bookInfo.tag,
                         LanguageISO: 'zh'
-                    }),
-                    checkCbz: () => {
-                        return chapter.cbzFile !== null && chapter.cbzFile !== undefined;
-                    }
+                    })
                 };
                 adultType.chapters.push(chapter);
             }
@@ -237,14 +220,7 @@
                 typeInfo: {
                     selectType: "water"
                 },
-                chapters: [],
-                checkCbz: function () {
-                    let mReturn = true;
-                    waterType.chapters.forEach(chapter => {
-                        if (chapter.checkCbz() !== true) mReturn = false;
-                    });
-                    return mReturn;
-                }
+                chapters: []
             };
             context.types.push(waterType);
 
@@ -272,11 +248,8 @@
                         Publisher: 'manwa',
                         Tags: context.bookInfo.tag,
                         LanguageISO: 'zh'
-                    }),
-                    checkCbz: () => {
-                        return chapter.cbzFile !== null && chapter.cbzFile !== undefined;
-                    }
-                }
+                    })
+                };
                 waterType.chapters.push(chapter);
 
             }
@@ -307,8 +280,17 @@
                     .flatMap(type => type.chapters)
                     .forEach(chapter => {
                         tools.manwa.downloadHelp.generateCbz(chapter, () => {
-                            console.log(context.checkCbz())
-                            if (context.checkCbz() === true) {
+                            let completeNum = 0;
+                            let totalNum = 0;
+                            context.types
+                                .flatMap(type => type.chapters)
+                                .forEach(chapter => {
+                                    totalNum++;
+                                    if (chapter.cbzFile !== null && chapter.cbzFile !== undefined) completeNum++;
+                                });
+                            tools.runtime.downloadTask.refreshStatus("打包", completeNum, totalNum);
+
+                            if (completeNum >= totalNum) {
                                 //创建zip
                                 tools.manwa.downloadHelp.generateZip(context, zipFile => {
                                     let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
@@ -391,30 +373,24 @@
                 refreshGenerateStatus: function () {
                     let completeNum = tools.runtime.downloadTask.getGeneratedNum();
                     let totalNum = tools.runtime.downloadTask.generateTask.runtime.taskList.length;
-                    let digitNum;
-                    if(totalNum > 1000){
-                        digitNum = 2;
-                    }else if(totalNum > 100){
-                        digitNum = 1;
-                    }else {
-                        digitNum = 0;
-                    }
-                    let percent = coofoUtils.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, digitNum) + "%";
-                    tools.runtime.downloadTask.showMsg("解析地址 " + percent);
+                    tools.runtime.downloadTask.refreshStatus("解析地址", completeNum, totalNum);
                 },
                 refreshDownLoadStatus: function () {
                     let completeNum = tools.runtime.downloadTask.getDownloadedNum();
                     let totalNum = tools.runtime.downloadTask.downloadTask.runtime.taskList.length;
+                    tools.runtime.downloadTask.refreshStatus("下载", completeNum, totalNum);
+                },
+                refreshStatus: function (name, completeNum, totalNum) {
                     let digitNum;
-                    if(totalNum > 1000){
+                    if (totalNum > 1000) {
                         digitNum = 2;
-                    }else if(totalNum > 100){
+                    } else if (totalNum > 100) {
                         digitNum = 1;
-                    }else {
+                    } else {
                         digitNum = 0;
                     }
                     let percent = coofoUtils.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, digitNum) + "%";
-                    tools.runtime.downloadTask.showMsg("下载 " + percent);
+                    tools.runtime.downloadTask.showMsg(name + " " + percent);
                 },
                 showFinished: function (completeNum, retryTimesOutNum) {
                     let msg = "下载完成：" + completeNum;
