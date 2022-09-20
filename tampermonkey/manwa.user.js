@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.1
+// @version      0.2.2
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -118,6 +118,11 @@
 
     });
 
+    //设置按钮
+    GM_registerMenuCommand("删除该位置之后所有", function () {
+        let editBtn = $("#user_js_edit");
+        editBtn.text("删之后");
+    });
 
     $("a.detail-bottom-btn").after('<a id="user_js_download" class="detail-bottom-btn" style="width: auto;padding: 0 15px;">⬇下载</a>');
 
@@ -128,14 +133,31 @@
         let editBtn = $("#user_js_edit");
         if (editBtn.text() === "删除项") {
             editBtn.text("确定");
-        } else {
+        } else if (editBtn.text() === "确定") {
             editBtn.text("删除项");
         }
     });
 
     $("li[idx]").click(function () {
-        if ($("#user_js_edit").text() === "删除项") {
+        let editBtn = $("#user_js_edit");
+        let btnText = editBtn.text();
+        if (btnText === "删除项") {
             return true;
+        } else if (btnText === "删之后") {
+            let idx = $(this).attr("idx");
+            let deleteAfter = false;
+            $("li[idx]").toArray().forEach(li => {
+                if (deleteAfter) {
+                    $(li).remove();
+                } else {
+                    let thisIdx = $(li).attr("idx");
+                    if (thisIdx === idx) {
+                        deleteAfter = true;
+                    }
+                }
+            });
+            editBtn.text("删除项");
+            return false;
         } else {
             this.remove();
             return false;
