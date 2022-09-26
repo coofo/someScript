@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.0
+// @version      0.2.0
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -237,8 +237,31 @@
                             window.URL.revokeObjectURL(aLink.href);
                             document.body.removeChild(aLink);
                         }
+                    },
+                    asForm: function (url, method, data = null) {
+                        //新建form表单
+                        let form = document.createElement("form");
+                        form.id = "eform";
+                        form.name = "eform";
+                        form.target = "_blank";
+                        document.body.appendChild(form);
+                        //添加参数
+                        if (data != null) {
+                            Object.keys(data).forEach(function (key) {
+                                let sdate_input = document.createElement("input");
+                                sdate_input.type = "text";
+                                sdate_input.name = key;
+                                sdate_input.value = data[key];
+                                form.appendChild(sdate_input);
+                            });
+                        }
+                        form.method = method;
+                        form.action = url;
+                        form.submit();
+                        document.body.removeChild(form);
                     }
-                }
+                },
+
             },
             xss: {
                 htmlEscape: function (text) {
@@ -261,63 +284,79 @@
                         }
                     })
                 }
-            }
-        },
-        comicInfoUtils: {
-            create: function (info) {
-                let p = ['Series', 'Title', 'Number', 'Count', 'Volume', 'Summary', 'Notes', 'Year', 'Month', 'Day',
-                    'Writer', 'Penciller', 'Inker', 'Colorist', 'Letterer', 'CoverArtist', 'Editor', 'Translator',
-                    'Publisher', 'Imprint', 'Genre', 'Tags', 'Web', 'Format', 'BlackAndWhite', 'Manga', 'Characters',
-                    'Teams', 'Locations', 'ScanInformation', 'StoryArc', 'StoryArcNumber', 'SeriesGroup', 'AgeRating',
-                    'CommunityRating', 'PageCount', 'LanguageISO'];
-                let xml = "<?xml version='1.0' encoding='utf-8'?>\n";
-                xml += '<ComicInfo>\n';
-
-                for (let i = 0; i < p.length; i++) {
-                    let name = p[i];
-                    let value = info[name];
-                    if (value !== undefined && value !== null && value.length > 0) {
-                        if (typeof value === 'object') {
-                            value = value.join(',');
+            },
+            url: {
+                //获取url中的参数
+                getQueryVariable: function (variableKey, defaultValue = null) {
+                    let query = window.location.search.substring(1);
+                    let vars = query.split("&");
+                    for (let i = 0; i < vars.length; i++) {
+                        let pair = vars[i].split("=");
+                        if (pair[0] === variableKey) {
+                            return decodeURIComponent(pair[1]);
                         }
-                        xml += `  <${name}>${coofoUtils.commonUtils.xss.htmlEscape(value)}</${name}>\n`;
                     }
-                }
-
-                xml += '</ComicInfo>';
-                return xml;
-            }
-        },
-        tampermonkeyUtils: {
-            downloadHelp: {
-                toBlob: {
-                    asBlob: function (url, onSuccess) {
-                        GM_xmlhttpRequest({
-                            method: "GET",
-                            url: url,
-                            responseType: "arraybuffer",
-                            onload: function (responseDetails) {
-                                onSuccess(responseDetails);
-                            }
-                        });
-                    }
+                    return defaultValue;
                 },
-                toUser: {
-                    asGMdownload: function (url, fileName, setting) {
-                        let details;
-                        if (typeof setting === "object" && typeof setting.gmDownload === "object") {
-                            details = setting.gmDownload;
+                //在url中添加参数keyValue格式[{key: xx, value: xx}]
+                addVariable: function (url, keyValues) {
+                    if (!keyValues || keyValues.length === 0) return url;
+                    let add = (u) => {
+                        if (u.lastIndexOf("?") !== -1) {
+                            u += "&";
                         } else {
-                            details = {saveAs: false};
+                            u += "?";
                         }
-                        details.url = url;
-                        details.name = fileName;
-                        // console.log(details.url);
-                        // console.log(details.name);
-                        GM_download(details);
+                        for (let i = 0; i < keyValues.length; i++) {
+                            if (!(keyValues[i].key || keyValues[i].value)) continue;
+                            u += keyValues[i].key + "=" + encodeURIComponent(keyValues[i].value);
+                            if (i !== keyValues.length - 1) {
+                                u += "&"
+                            }
+                        }
+                        return u;
+                    };
+                    //处理有url有hash的情况
+                    let index = url.indexOf("#");
+                    if (index !== -1) {
+                        let realUrl = url.substr(0, index);
+                        let hash = url.substr(index);
+                        url = add(realUrl) + hash;
+                    } else {
+                        url = add(url);
                     }
+                    return url;
+                },
+                addVariableByData: function (url, data) {
+                    let keyValues = [];
+                    let i = 0;
+                    Object.keys(data).forEach(function (key) {
+                        keyValues[i] = {
+                            key: key,
+                            value: data[key]
+                        };
+                        i++;
+                    });
+                    return coofoUtils.commonUtils.url.addVariable(url, keyValues);
+                },
+                getBaseUrl: function () {
+                    return window.location.protocol + '//' + window.location.host;
                 }
-            }
+            },
+            browser: {
+                type: function () {
+                    let u = navigator.userAgent;
+                    let app = navigator.appVersion;
+                    let name = {};
+
+                    name.isAndroid = /Android/i.test(u);
+                    name.isiPhone = /iPhone/i.test(u);
+                    name.isiPad = /iPad/i.test(u);
+                    name.isWindowsPc = /Windows/i.test(u);
+                    name.isWindowsPhone = /Windows Phone/i.test(u);
+                    return name;
+                }(),
+            },
         },
         service: {
             task: {
