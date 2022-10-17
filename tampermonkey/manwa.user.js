@@ -276,28 +276,59 @@
 
             }
         }
-
-        //获取下载地址
-        let generateTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
-            if (retryTimesOutNum > 0) {
-                Swal.fire({
-                    icon: 'error',
-                    title: '下载出错',
-                    text: '解析地址 ' + completeNum + ' - ' + retryTimesOutNum
+        (async () => {
+            //获取下载地址
+            await new Promise((resolve, reject) => {
+                let generateTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+                    if (retryTimesOutNum > 0) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: '下载出错',
+                            text: '解析地址 ' + completeNum + ' - ' + retryTimesOutNum
+                        });
+                        reject();
+                    } else {
+                        resolve();
+                    }
                 });
-                return;
-            }
+                tools.runtime.downloadTask.generateTask = generateTask;
 
-            //执行下载操作
-            let downloadTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
-                if (retryTimesOutNum > 0) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: '下载出错',
-                        text: '下载 ' + completeNum + ' - ' + retryTimesOutNum
-                    });
-                    return;
+                context.types
+                    .flatMap(type => type.chapters)
+                    .forEach(chapter => generateTask.api.addTask(taskItem => setTimeout(() => tools.manwa.downloadHelp.generateTask(taskItem, chapter), 500), setting.downloadRetryTimes));
+
+                for (let i = 0; i < 1; i++) {
+                    generateTask.api.exec(i);
                 }
+            });
+            //执行下载操作
+            await new Promise((resolve, reject) => {
+                let downloadTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+                    if (retryTimesOutNum > 0) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: '下载出错',
+                            text: '下载 ' + completeNum + ' - ' + retryTimesOutNum
+                        });
+                        reject();
+                    } else {
+                        resolve();
+                    }
+                });
+                tools.runtime.downloadTask.downloadTask = downloadTask;
+
+                context.types
+                    .flatMap(type => type.chapters)
+                    .flatMap(chapter => chapter.images)
+                    .forEach(image => downloadTask.api.addTask(taskItem => tools.manwa.downloadHelp.zipDownloadTask(taskItem, image), setting.downloadRetryTimes));
+
+                for (let i = 0; i < setting.threadNum; i++) {
+                    downloadTask.api.exec(i);
+                }
+            });
+
+            //创建cbz
+            let completeNum = await new Promise(resolve => {
                 context.types
                     .flatMap(type => type.chapters)
                     .forEach(chapter => {
@@ -313,39 +344,91 @@
                             tools.runtime.downloadTask.refreshStatus("打包", completeNum, totalNum);
 
                             if (completeNum >= totalNum) {
-                                //创建zip
-                                tools.manwa.downloadHelp.generateZip(context, zipFile => {
-                                    let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
-                                    coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
-                                    tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
-                                });
+                                resolve(completeNum);
                             }
                         })
                     });
             });
-            tools.runtime.downloadTask.downloadTask = downloadTask;
 
-            context.types
-                .flatMap(type => type.chapters)
-                .flatMap(chapter => chapter.images)
-                .forEach(image => downloadTask.api.addTask(taskItem => tools.manwa.downloadHelp.zipDownloadTask(taskItem, image), setting.downloadRetryTimes));
-
-
-
-            for (let i = 0; i < setting.threadNum; i++) {
-                downloadTask.api.exec(i);
-            }
-        });
-        tools.runtime.downloadTask.generateTask = generateTask;
-
-        context.types
-            .flatMap(type => type.chapters)
-            .forEach(chapter => generateTask.api.addTask(taskItem => setTimeout(() => tools.manwa.downloadHelp.generateTask(taskItem, chapter), 500), setting.downloadRetryTimes));
-
-        console.log(tools.runtime)
-        for (let i = 0; i < 1; i++) {
-            generateTask.api.exec(i);
-        }
+            //创建zip
+            let zipFile = await new Promise(resolve => {
+                tools.manwa.downloadHelp.generateZip(context, zipFile => resolve(zipFile));
+            })
+            //触发下载
+            let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
+            coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
+            tools.runtime.downloadTask.showFinished(completeNum, 0);
+        })();
+        //
+        // //获取下载地址
+        // let generateTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+        //     if (retryTimesOutNum > 0) {
+        //         Swal.fire({
+        //             icon: 'error',
+        //             title: '下载出错',
+        //             text: '解析地址 ' + completeNum + ' - ' + retryTimesOutNum
+        //         });
+        //         return;
+        //     }
+        //
+        //     //执行下载操作
+        //     let downloadTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
+        //         if (retryTimesOutNum > 0) {
+        //             Swal.fire({
+        //                 icon: 'error',
+        //                 title: '下载出错',
+        //                 text: '下载 ' + completeNum + ' - ' + retryTimesOutNum
+        //             });
+        //             return;
+        //         }
+        //         context.types
+        //             .flatMap(type => type.chapters)
+        //             .forEach(chapter => {
+        //                 tools.manwa.downloadHelp.generateCbz(chapter, () => {
+        //                     let completeNum = 0;
+        //                     let totalNum = 0;
+        //                     context.types
+        //                         .flatMap(type => type.chapters)
+        //                         .forEach(chapter => {
+        //                             totalNum++;
+        //                             if (chapter.cbzFile !== null && chapter.cbzFile !== undefined) completeNum++;
+        //                         });
+        //                     tools.runtime.downloadTask.refreshStatus("打包", completeNum, totalNum);
+        //
+        //                     if (completeNum >= totalNum) {
+        //                         //创建zip
+        //                         tools.manwa.downloadHelp.generateZip(context, zipFile => {
+        //                             let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
+        //                             coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
+        //                             tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
+        //                         });
+        //                     }
+        //                 })
+        //             });
+        //     });
+        //     tools.runtime.downloadTask.downloadTask = downloadTask;
+        //
+        //     context.types
+        //         .flatMap(type => type.chapters)
+        //         .flatMap(chapter => chapter.images)
+        //         .forEach(image => downloadTask.api.addTask(taskItem => tools.manwa.downloadHelp.zipDownloadTask(taskItem, image), setting.downloadRetryTimes));
+        //
+        //
+        //
+        //     for (let i = 0; i < setting.threadNum; i++) {
+        //         downloadTask.api.exec(i);
+        //     }
+        // });
+        // tools.runtime.downloadTask.generateTask = generateTask;
+        //
+        // context.types
+        //     .flatMap(type => type.chapters)
+        //     .forEach(chapter => generateTask.api.addTask(taskItem => setTimeout(() => tools.manwa.downloadHelp.generateTask(taskItem, chapter), 500), setting.downloadRetryTimes));
+        //
+        // console.log(tools.runtime)
+        // for (let i = 0; i < 1; i++) {
+        //     generateTask.api.exec(i);
+        // }
 
     });
 
