@@ -360,84 +360,70 @@
         },
         service: {
             task: {
-                create: function (callBack) {
+                create: function () {
                     let task = {
-                        runtime: {taskList: [], callBack: callBack, callBackDone: false},
+                        runtime: {taskList: [], executing: [], nowExec: false},
                         api: {
-                            getRuntime: function () {
-                                return this.runtime;
-                            },
                             addTask: function (exec, lastRetryTimes) {
+                                if (task.runtime.nowExec) {
+                                    return;
+                                }
                                 let taskItem = {
-                                    handler: null,
                                     complete: false,
                                     lastFinishTime: 0,
                                     lastRetryTimes: lastRetryTimes + 1,
-                                    exec: function (onTaskFinish) {
-                                        this.onTaskFinish = onTaskFinish;
-                                        exec(this);
-                                    },
-                                    success: function () {
-                                        this.handler = null;
-                                        this.complete = true;
-                                        this.lastFinishTime = Date.now();
-                                        this.onTaskFinish();
-
-                                    },
-                                    failed: function () {
-                                        this.handler = null;
-                                        this.lastRetryTimes--;
-                                        this.lastFinishTime = Date.now();
-                                        this.onTaskFinish();
-                                    },
-                                    onTaskFinish: null
+                                    exec: exec,
+                                    success: null,
+                                    failed: null
                                 };
                                 task.runtime.taskList.push(taskItem);
                             },
-                            exec: function (handler) {
-                                let taskList = task.runtime.taskList;
-                                //判断该执行器是否有未完任务，并指定为失败
-                                // for (let i = 0; i < taskList.length; i++) {
-                                //     let taskItem = taskList[i];
-                                //     if (taskItem.handler === handler) {
-                                //         taskItem.failed();
-                                //     }
-                                // }
-
-                                //寻找新任务并标记返回
-                                let allFinished = true;
+                            exec: async function (poolLimit) {
+                                if (task.runtime.nowExec) {
+                                    return;
+                                }
+                                const executing = task.runtime.executing;
+                                for (const taskItem of task.runtime.taskList) {
+                                    let createPromise = function (taskItem) {
+                                        let p = new Promise((resolve, reject) => {
+                                            taskItem.success = resolve;
+                                            taskItem.failed = reject;
+                                            taskItem.exec(taskItem)
+                                        }).then(() => {
+                                                taskItem.complete = true;
+                                                executing.splice(executing.indexOf(p), 1)
+                                            },
+                                            () => {
+                                                taskItem.lastFinishTime = Date.now();
+                                                taskItem.lastRetryTimes--;
+                                                if (taskItem.lastRetryTimes > 0) {
+                                                    executing.splice(executing.indexOf(p), 1, createPromise(taskItem));
+                                                } else {
+                                                    executing.splice(executing.indexOf(p), 1)
+                                                }
+                                            }
+                                        );
+                                        return p;
+                                    }
+                                    executing.push(createPromise(taskItem));
+                                    while (executing.length >= poolLimit) {
+                                        await Promise.race(executing);
+                                    }
+                                }
+                                while (executing.length > 0) {
+                                    await Promise.race(executing);
+                                }
                                 let completeNum = 0;
                                 let retryTimesOutNum = 0;
-                                for (let i = 0; i < taskList.length; i++) {
-                                    let taskItem = taskList[i];
-
-                                    if (taskItem.complete === true) {
+                                for (const taskItem of task.runtime.taskList) {
+                                    if (taskItem.complete) {
                                         completeNum++;
-                                    } else if (taskItem.lastRetryTimes > 0) {
-                                        if (taskItem.handler == null) {
-                                            taskItem.handler = handler;
-                                            setTimeout(function () {
-                                                taskItem.exec(function () {
-                                                    task.api.exec(handler);
-                                                });
-                                            }, 0);
-                                            return;
-                                        } else {
-                                            allFinished = false;
-                                        }
                                     } else {
                                         retryTimesOutNum++;
                                     }
                                 }
-                                if (allFinished && !task.runtime.callBackDone) {
-                                    task.runtime.callBackDone = true;
-                                    setTimeout(function () {
-                                        if (typeof task.runtime.callBack === 'function') {
-                                            task.runtime.callBack(completeNum, retryTimesOutNum);
-                                        }
-                                    }, 0);
-                                }
-                            },
+                                return {completeNum: completeNum, retryTimesOutNum: retryTimesOutNum};
+                            }
                         }
                     };
                     return task;
