@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.3
+// @version      0.2.4
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -12,7 +12,7 @@
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1106604
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
 // @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
 // @require      https://greasyfork.org/scripts/453329-coofoutils-comicinfo/code/coofoUtils-comicInfo.js?version=1106598
 // @connect      img.manwa.me
@@ -278,64 +278,89 @@
 
             }
         }
-        (async () => {
-            //获取下载地址
-            let generateTask = coofoUtils.service.task.create();
-            tools.runtime.downloadTask.generateTask = generateTask;
 
-            context.types
-                .flatMap(type => type.chapters)
-                .forEach(chapter => generateTask.api.addTask(taskItem => setTimeout(() => tools.manwa.downloadHelp.generateTask(taskItem, chapter), 500), setting.downloadRetryTimes));
+        Swal.fire({
+            title: '下载中',
+            html: `<div id="progressGT">解析</div>
+                   <div><progress id="progressG" value="0" max="100" style="width: 100%;"></progress></div>
+                   <div id="progressDT">下载</div>
+                   <div><progress id="progressD" value="0" max="100" style="width: 100%;"></progress></div>`,
+            showConfirmButton: false
+        });
 
-            let generateTaskReturn = await generateTask.api.exec(1);
-            if (generateTaskReturn.retryTimesOutNum > 0) {
-                Swal.fire({
-                    icon: 'error',
-                    title: '下载出错',
-                    text: '解析地址 ' + generateTaskReturn.completeNum + ' - ' + generateTaskReturn.retryTimesOutNum
+        let getUrlPool = coofoUtils.service.threadPoolTaskExecutor.create(1);
+        let downloadPool = coofoUtils.service.threadPoolTaskExecutor.create(setting.threadNum);
+        let resolve;
+        let reject;
+        let promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+
+        let promises = [];
+        for (let iType = 0; iType < context.types.length; iType++) {
+            let type = context.types[iType];
+            for (let iChapter = 0; iChapter < type.chapters.length; iChapter++) {
+                let chapter = type.chapters[iChapter];
+                tools.runtime.downloadTask.generateTaskNum++;
+                let chapterPromise = coofoUtils.service.retryablePromise.create((res, rej) => {
+                    //获取图片url
+                    getUrlPool.execute((resPool, rejPool) => {
+                        setTimeout(() => tools.manwa.downloadHelp.generateTask({
+                            success: resPool,
+                            failed: rejPool
+                        }, chapter), 500)
+                    }).then(r => res(r), r => rej(r));
+
+                }, setting.downloadRetryTimes).then(() => {
+                    //下载图片
+                    let downloadPromises = [];
+                    chapter.images.forEach(image => {
+                        tools.runtime.downloadTask.downloadTaskNum++;
+                        let downloadPromise = coofoUtils.service.retryablePromise.create((res, rej) => {
+                            downloadPool.execute((resPool, rejPool) => {
+                                tools.manwa.downloadHelp.zipDownloadTask({
+                                    success: resPool,
+                                    failed: rejPool
+                                }, image)
+                            }).then(r => res(r), r => rej(r));
+                        }, setting.downloadRetryTimes);
+                        downloadPromises.push(downloadPromise);
+                    });
+                    return Promise.all(downloadPromises);
+                }).then(() => {
+                    //创建cbz
+                    return new Promise(res => {
+                        tools.manwa.downloadHelp.generateCbz(chapter, () => {
+                            //TODO show
+                            res();
+                        });
+                    })
                 });
-                return;
+
+                promises.push(chapterPromise);
             }
+        }
+        Promise.all(promises).then(() => resolve(), r => reject(r));
 
-            //执行下载操作
-            let downloadTask = coofoUtils.service.task.create();
-            tools.runtime.downloadTask.downloadTask = downloadTask;
-
-            context.types
-                .flatMap(type => type.chapters)
-                .flatMap(chapter => chapter.images)
-                .forEach(image => downloadTask.api.addTask(taskItem => tools.manwa.downloadHelp.zipDownloadTask(taskItem, image), setting.downloadRetryTimes));
-
-            let downloadTaskReturn = await downloadTask.api.exec(setting.threadNum);
-            if(downloadTaskReturn.retryTimesOutNum > 0){
-                Swal.fire({
-                    icon: 'error',
-                    title: '下载出错',
-                    text: '下载 ' + downloadTaskReturn.completeNum + ' - ' + downloadTaskReturn.retryTimesOutNum
-                });
-            }
-
-            //创建cbz
-            let cbzCompleteNum = 0;
-            let cbzGenerateTasks = context.types
-                .flatMap(type => type.chapters)
-                .map(chapter => new Promise(resolve => tools.manwa.downloadHelp.generateCbz(chapter, () => {
-                    cbzCompleteNum++;
-                    tools.runtime.downloadTask.refreshStatus("打包", cbzCompleteNum, cbzGenerateTasks.length);
-                    resolve();
-                })));
-
-            await Promise.all(cbzGenerateTasks);
-
+        promise.then(() => {
             //创建zip
-            let zipFile = await new Promise(resolve => tools.manwa.downloadHelp.generateZip(context, zipFile => resolve(zipFile)));
-
+            return new Promise(resolve => tools.manwa.downloadHelp.generateZip(context, zipFile => resolve(zipFile)))
+        }).then(zipFile => {
             //触发下载
             let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
             coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
-            tools.runtime.downloadTask.showFinished(downloadTaskReturn.completeNum, 0);
-        })();
+            tools.runtime.downloadTask.showFinished(tools.runtime.downloadTask.downloadedTaskNum, 0);
+            Swal.fire({
+                icon: 'success',
+                title: '下载完成'
+            });
+        }, r => {
+            Swal.fire('下载失败', r, 'error');
+        });
     });
+
+
 
 
 
@@ -349,45 +374,29 @@
             nowDownloading: false,
             downloadTask: {
                 zip: null,
-                generateTask: null,
-                getGeneratedNum: function () {
-                    if (this.generateTask == null) {
-                        return 0;
-                    }
-                    let i = 0;
-                    let list = this.generateTask.runtime.taskList;
-                    for (let j = 0; j < list.length; j++) {
-                        if (list[j].complete === true) {
-                            i++;
-                        }
-                    }
-                    return i;
-                },
-                downloadTask: null,
-                getDownloadedNum: function () {
-                    if (this.downloadTask == null) {
-                        return 0;
-                    }
-                    let i = 0;
-                    let list = this.downloadTask.runtime.taskList;
-                    for (let j = 0; j < list.length; j++) {
-                        if (list[j].complete === true) {
-                            i++;
-                        }
-                    }
-                    return i;
-                },
+                generateTaskNum: 0,
+                generatedTaskNum: 0,
+                downloadTaskNum: 0,
+                downloadedTaskNum: 0,
                 showMsg: function (msg) {
                     console.log(msg);
                 },
                 refreshGenerateStatus: function () {
-                    let completeNum = tools.runtime.downloadTask.getGeneratedNum();
-                    let totalNum = tools.runtime.downloadTask.generateTask.runtime.taskList.length;
+                    let completeNum = tools.runtime.downloadTask.generatedTaskNum;
+                    let totalNum = tools.runtime.downloadTask.generateTaskNum;
+                    $('#progressGT').html(`解析 （${completeNum}/${totalNum}）`);
+                    let progress = $('#progressG');
+                    progress.attr("value",completeNum);
+                    progress.attr("max",totalNum);
                     tools.runtime.downloadTask.refreshStatus("解析地址", completeNum, totalNum);
                 },
                 refreshDownLoadStatus: function () {
-                    let completeNum = tools.runtime.downloadTask.getDownloadedNum();
-                    let totalNum = tools.runtime.downloadTask.downloadTask.runtime.taskList.length;
+                    let completeNum = tools.runtime.downloadTask.downloadedTaskNum;
+                    let totalNum = tools.runtime.downloadTask.downloadTaskNum;
+                    $('#progressDT').html(`下载 （${completeNum}/${totalNum}）`);
+                    let progress = $('#progressD');
+                    progress.attr("value",completeNum);
+                    progress.attr("max",totalNum);
                     tools.runtime.downloadTask.refreshStatus("下载", completeNum, totalNum);
                 },
                 refreshStatus: function (name, completeNum, totalNum) {
@@ -408,8 +417,6 @@
                         msg = msg + " - " + retryTimesOutNum;
                     }
                     this.showMsg(msg);
-                    tools.runtime.downloadTask.generateTask = null;
-                    tools.runtime.downloadTask.downloadTask = null;
                 }
             }
         },
@@ -491,6 +498,7 @@
                         }
 
                         taskItem.success();
+                        tools.runtime.downloadTask.generatedTaskNum++;
                         tools.runtime.downloadTask.refreshGenerateStatus();
                     }, function () {
                         taskItem.failed();
@@ -521,6 +529,7 @@
                             };
                             image.imageFile = o(e);
                             taskItem.success();
+                            tools.runtime.downloadTask.downloadedTaskNum++;
                             tools.runtime.downloadTask.refreshDownLoadStatus();
                         }else{
                             console.error("download error: " + url);

@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         manwa图片下载
+// @name         manwa图片下载test
 // @namespace    https://github.com/coofo/someScript
 // @version      0.2.4
 // @license      AGPL License
@@ -281,10 +281,12 @@
 
         Swal.fire({
             title: '下载中',
-            html: `<div>解析<progress id="progressG" value="0" max="100" style="width: 100%;"></progress></div>
-                   <div>下载<progress id="progressD" value="0" max="100" style="width: 100%;"></progress></div>`,
+            html: `<div id="progressGT">解析</div>
+                   <div><progress id="progressG" value="0" max="100" style="width: 100%;"></progress></div>
+                   <div id="progressDT">下载</div>
+                   <div><progress id="progressD" value="0" max="100" style="width: 100%;"></progress></div>`,
             showConfirmButton: false
-        })
+        });
 
         let getUrlPool = coofoUtils.service.threadPoolTaskExecutor.create(1);
         let downloadPool = coofoUtils.service.threadPoolTaskExecutor.create(setting.threadNum);
@@ -349,6 +351,12 @@
             let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
             coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
             tools.runtime.downloadTask.showFinished(tools.runtime.downloadTask.downloadedTaskNum, 0);
+            Swal.fire({
+                icon: 'success',
+                title: '下载完成'
+            });
+        }, r => {
+            Swal.fire('下载失败', r, 'error');
         });
     });
 
@@ -376,6 +384,7 @@
                 refreshGenerateStatus: function () {
                     let completeNum = tools.runtime.downloadTask.generatedTaskNum;
                     let totalNum = tools.runtime.downloadTask.generateTaskNum;
+                    $('#progressGT').html(`解析 （${completeNum}/${totalNum}）`);
                     let progress = $('#progressG');
                     progress.attr("value",completeNum);
                     progress.attr("max",totalNum);
@@ -384,6 +393,7 @@
                 refreshDownLoadStatus: function () {
                     let completeNum = tools.runtime.downloadTask.downloadedTaskNum;
                     let totalNum = tools.runtime.downloadTask.downloadTaskNum;
+                    $('#progressDT').html(`下载 （${completeNum}/${totalNum}）`);
                     let progress = $('#progressD');
                     progress.attr("value",completeNum);
                     progress.attr("max",totalNum);
