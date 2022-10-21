@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.0
+// @version      0.3.0
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -359,6 +359,38 @@
             },
         },
         service: {
+            retryablePromise: {
+                create: function (exec, retryTimes) {
+                    let taskInfo = {
+                        resolve: null,
+                        reject: null,
+                        retryTimes: retryTimes + 1
+                    };
+                    let p = new Promise((res, rej) => {
+                        taskInfo.resolve = res;
+                        taskInfo.reject = rej;
+                    });
+
+                    let doTask = function () {
+                        new Promise((res, rej) => {
+                            exec(res, rej);
+                        }).then(
+                            r => taskInfo.resolve(r),
+                            r => {
+                                taskInfo.retryTimes--;
+                                if (taskInfo.retryTimes > 0) {
+                                    doTask();
+                                } else {
+                                    taskInfo.reject(r);
+                                }
+                            }
+                        );
+                    }
+                    doTask();
+
+                    return p;
+                }
+            },
             task: {
                 create: function () {
                     let task = {
@@ -427,6 +459,44 @@
                         }
                     };
                     return task;
+                }
+            },
+            threadPoolTaskExecutor: {
+                create: function (size) {
+                    let executing = [];
+                    let pending = [];
+
+                    let execOne = function () {
+                        if (executing.length < size && pending.length > 0) {
+                            let pendingItem = pending.splice(0, 1)[0];
+                            let e = new Promise((r, s) => {
+                                pendingItem.runnable(r, s);
+                            }).then(r => {
+                                executing.splice(executing.indexOf(e), 1);
+                                execOne();
+                                pendingItem.resolve(r);
+                            }, r => {
+                                executing.splice(executing.indexOf(e), 1);
+                                execOne();
+                                pendingItem.reject(r);
+                            });
+                            executing.push(e);
+                        }
+                    };
+
+                    return {
+                        execute: function (runnable) {
+                            let thisPendingItem = {runnable: runnable};
+                            let p = new Promise((resolve, reject) => {
+                                thisPendingItem.resolve = resolve;
+                                thisPendingItem.reject = reject;
+                            });
+                            pending.push(thisPendingItem);
+
+                            execOne();
+                            return p;
+                        }
+                    };
                 }
             }
         }
