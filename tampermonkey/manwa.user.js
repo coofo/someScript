@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.4
+// @version      0.2.5
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -51,7 +51,7 @@
          * 下载线程数量
          * @type {number}
          */
-        threadNum: 5,
+        threadNum: 8,
 
         /**
          * 下载失败重试次数
@@ -536,6 +536,9 @@
                             console.error(a.status);
                             taskItem.failed();
                         }
+                    };
+                    request.onerror = () => {
+                        taskItem.failed();
                     };
                     request.send();
                 },
