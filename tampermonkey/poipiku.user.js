@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.0
+// @version      0.2.1
 // @license      AGPL License
 // @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
@@ -12,7 +12,9 @@
 // @include      /^https://poipiku.com/IllustListPcV\.jsp\?.*ID=(\d+)/
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1088510
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
+// @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
+// @require      https://greasyfork.org/scripts/453329-coofoutils-comicinfo/code/coofoUtils-comicInfo.js?version=1106598
 // @connect      img.poipiku.com
 // @connect      img-org.poipiku.com
 // @grant        GM_download
@@ -48,7 +50,7 @@
              */
             zipNameTemplate: "[poipiku][${userId}]${userName}"
         },
-        threadNum: 5,
+        threadNum: 8,
         /**
          * 下载模式
          * single：将图片文件单个下载（如果需要保存的文件有文件夹结构，则需要将tampermonkey下载模式调整为【浏览器API】）
@@ -115,8 +117,6 @@
     });
 
 
-
-
     const userName = $("h2.UserInfoUserName a").html();
     coofoUtils.commonUtils.assert.hasLength(userName, "未获取到userName");
 
@@ -163,7 +163,7 @@
                     info: {
                         id: match[2]
                     },
-                    images:[]
+                    images: []
                 };
                 context.items.push(item);
             }
@@ -210,7 +210,7 @@
                 info: {
                     id: match[2]
                 },
-                images:[]
+                images: []
             });
 
             download(context);
@@ -219,53 +219,49 @@
 
     }
 
-    let download = function (context) {
-
-        let generateTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
-            if (retryTimesOutNum > 0 || completeNum === 0) {
-                Swal.fire({
-                    icon: 'error',
-                    title: '下载出错',
-                    text: '解析地址 ' + completeNum + ' - ' + retryTimesOutNum
-                });
-                return;
-            }
-            let downloadTask = coofoUtils.service.task.create((completeNum, retryTimesOutNum) => {
-                if (retryTimesOutNum > 0 || completeNum === 0) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: '下载出错',
-                        text: '下载 ' + completeNum + ' - ' + retryTimesOutNum
-                    });
-                    return;
-                }
-                tools.poipiku.downloadHelp.generateZip(context, zipFile => {
-                    let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.info) + ".zip";
-                    coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
-                    tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
-                });
-
-            });
-            tools.runtime.downloadTask.downloadTask = downloadTask;
-
-            context.items
-                .flatMap(item => item.images)
-                .forEach(image => downloadTask.api.addTask(taskItem => tools.poipiku.downloadHelp.downloadTask(taskItem, image), setting.downloadRetryTimes));
-
-            for (let i = 0; i < setting.threadNum; i++) {
-                downloadTask.api.exec(i);
-            }
-        });
+    let download = async function (context) {
+        //获取下载地址
+        let generateTask = coofoUtils.service.task.create();
         tools.runtime.downloadTask.generateTask = generateTask;
 
         context.items.forEach(item => {
             generateTask.api.addTask(taskItem => tools.poipiku.downloadHelp.generateTask(taskItem, item), setting.downloadRetryTimes);
         });
 
-        for (let i = 0; i < setting.threadNum; i++) {
-            generateTask.api.exec(i);
+        let generateTaskReturn = await generateTask.api.exec(setting.threadNum);
+        if (generateTaskReturn.retryTimesOutNum > 0) {
+            Swal.fire({
+                icon: 'error',
+                title: '下载出错',
+                text: '解析地址 ' + generateTaskReturn.completeNum + ' - ' + generateTaskReturn.retryTimesOutNum
+            });
+            return;
         }
 
+        //执行下载操作
+        let downloadTask = coofoUtils.service.task.create();
+        tools.runtime.downloadTask.downloadTask = downloadTask;
+
+        context.items
+            .flatMap(item => item.images)
+            .forEach(image => downloadTask.api.addTask(taskItem => tools.poipiku.downloadHelp.downloadTask(taskItem, image), setting.downloadRetryTimes));
+
+        let downloadTaskReturn = await downloadTask.api.exec(setting.threadNum);
+        if (downloadTaskReturn.retryTimesOutNum > 0) {
+            Swal.fire({
+                icon: 'error',
+                title: '下载出错',
+                text: '下载 ' + downloadTaskReturn.completeNum + ' - ' + downloadTaskReturn.retryTimesOutNum
+            });
+        }
+
+        //创建zip
+        let zipFile = await new Promise(resolve => tools.poipiku.downloadHelp.generateZip(context, zipFile => resolve(zipFile)));
+
+        //触发下载
+        let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.info) + ".zip";
+        coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
+        tools.runtime.downloadTask.showFinished(downloadTaskReturn.completeNum, 0);
 
     }
 
@@ -315,11 +311,11 @@
                     let completeNum = tools.runtime.downloadTask.getGeneratedNum();
                     let totalNum = tools.runtime.downloadTask.generateTask.runtime.taskList.length;
                     let digitNum;
-                    if(totalNum > 1000){
+                    if (totalNum > 1000) {
                         digitNum = 2;
-                    }else if(totalNum > 100){
+                    } else if (totalNum > 100) {
                         digitNum = 1;
-                    }else {
+                    } else {
                         digitNum = 0;
                     }
                     let percent = coofoUtils.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, digitNum) + "%";
@@ -329,11 +325,11 @@
                     let completeNum = tools.runtime.downloadTask.getDownloadedNum();
                     let totalNum = tools.runtime.downloadTask.downloadTask.runtime.taskList.length;
                     let digitNum;
-                    if(totalNum > 1000){
+                    if (totalNum > 1000) {
                         digitNum = 2;
-                    }else if(totalNum > 100){
+                    } else if (totalNum > 100) {
                         digitNum = 1;
-                    }else {
+                    } else {
                         digitNum = 0;
                     }
                     let percent = coofoUtils.commonUtils.format.num.toThousands(completeNum / totalNum * 100, null, digitNum) + "%";

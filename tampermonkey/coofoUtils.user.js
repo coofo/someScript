@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.0
+// @version      0.3.1
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -385,7 +385,7 @@
                                 }
                             }
                         );
-                    }
+                    };
                     doTask();
 
                     return p;
@@ -436,7 +436,7 @@
                                             }
                                         );
                                         return p;
-                                    }
+                                    };
                                     executing.push(createPromise(taskItem));
                                     while (executing.length >= poolLimit) {
                                         await Promise.race(executing);
@@ -468,7 +468,7 @@
 
                     let execOne = function () {
                         if (executing.length < size && pending.length > 0) {
-                            let pendingItem = pending.splice(0, 1)[0];
+                            let pendingItem = pending.shift();
                             let e = new Promise((r, s) => {
                                 pendingItem.runnable(r, s);
                             }).then(r => {
@@ -495,6 +495,9 @@
 
                             execOne();
                             return p;
+                        },
+                        cancelAll: function () {
+                            pending.splice(0);
                         }
                     };
                 }
