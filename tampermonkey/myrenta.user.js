@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.2
+// @version      0.1.3
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -125,7 +125,11 @@
             let htmlEscape = coofoUtils.commonUtils.xss.htmlEscape;
             let html = '';
             for (let n in info) {
-                html += n + '：' + htmlEscape(info[n]) + '<br>';
+                let infoItem = info[n];
+                if (n === 'summarys') {
+                    infoItem = infoItem.length;
+                }
+                html += n + '：' + htmlEscape(infoItem) + '<br>';
             }
             Swal.fire({
                 title: '已暂存信息',
@@ -326,7 +330,11 @@
             let htmlEscape = coofoUtils.commonUtils.xss.htmlEscape;
             for (let n in info) {
                 if (!info.hasOwnProperty(n)) continue;
-                html += n + '：' + htmlEscape(info[n]) + '<br>';
+                let infoItem = info[n];
+                if (n === 'summarys') {
+                    infoItem = infoItem.length;
+                }
+                html += n + '：' + htmlEscape(infoItem) + '<br>';
                 infoNum++;
             }
             if (infoNum > 0) {
