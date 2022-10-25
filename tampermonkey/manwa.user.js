@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.6
+// @version      0.2.7
 // @license      AGPL License
 // @description  下载
 // @author       coofo
 // @updateURL    https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
-// @include      /^https://manwa.(me|live|vip|fun|one|pro)/book/\d+/
+// @include      /^https://manwa.(me|live|vip|fun|one|pro|city)/book/\d+/
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
@@ -21,6 +21,7 @@
 // @connect      img.manwa.fun
 // @connect      img.manwa.one
 // @connect      img.manwa.pro
+// @connect      img.manwa.city
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
