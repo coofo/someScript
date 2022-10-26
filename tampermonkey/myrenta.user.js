@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.3
+// @version      0.1.4
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -102,7 +102,7 @@
 
     let urlMatch = null;
     if ((urlMatch = url.match(tools.myrenta.regex.bookUrl)) != null) {
-        $('#addMyList').before('<a id="saveBookInfo" href="javascript:;" class="btn btn-collect">暂存信息</a>');
+        $('#addMyList').next().after('<a id="saveBookInfo" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">暂存信息</a>');
 
         $('#saveBookInfo').click(function () {
             // console.log(GM_getValue("bookInfo",{}));
