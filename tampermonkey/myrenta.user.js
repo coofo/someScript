@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.4
+// @version      0.1.5
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -104,22 +104,31 @@
     if ((urlMatch = url.match(tools.myrenta.regex.bookUrl)) != null) {
         $('#addMyList').next().after('<a id="saveBookInfo" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">暂存信息</a>');
 
-        $('#saveBookInfo').click(function () {
+        $('#saveBookInfo').click(async function () {
             // console.log(GM_getValue("bookInfo",{}));
             let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o => $(o).html());
             publisher.push('myrenta');
-            // let summary = {};
-            // $(".other-vols").toArray().forEach(o => summary[$(o).find("h4").text().trim()] = $(o).find(".intro-text p").text().trim());
+            let summaries = [];
+
+            let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
+            for (let i = 0; i < volBtns.length; i++) {
+                let div = volBtns[i];
+                $(div).click();
+
+                await new Promise(resolve => setTimeout(() => resolve(), 0));
+                $(".other-vols").toArray().map(o => summaries.push({
+                    title: $(o).find("h4").text().trim(),
+                    summary: $(o).find(".intro-text p").text().trim()
+                }));
+            }
+
             let info = {
                 bookId: urlMatch[1],
                 bookName: $('div.main>div.breadcrumbs>a:last').html(),
                 author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').html(),
                 publisher: publisher,
                 tag: $('.btn-tag').toArray().map(o => $(o).html()),
-                // summary: summary,
-                summarys: $(".other-vols").toArray().map(o => {
-                    return {title: $(o).find("h4").text().trim(), summary: $(o).find(".intro-text p").text().trim()}
-                })
+                summarys: summaries
             };
             GM_setValue("bookInfo", info);
             let htmlEscape = coofoUtils.commonUtils.xss.htmlEscape;
