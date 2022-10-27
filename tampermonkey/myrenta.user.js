@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.6
+// @version      0.1.7
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -178,6 +178,7 @@
                 if (volBtns.length > 0) {
                     div = volBtns[i];
                     $(div).click();
+                    console.log("打开分页"+(i+1));
                     await new Promise(resolve => setTimeout(() => resolve(), 0));
                 }
 
@@ -188,6 +189,7 @@
                     let starReading = otherVolsDiv.find("a.start-reading");
                     if (starReading.length > 0) {
                         GM_setValue("autoDownload", "p");
+                        console.log("打开第"+(j+1));
                         starReading.click();
                         await new Promise(async (resolve, reject) => {
                             let status = "p";
@@ -436,8 +438,9 @@
 
 
         let title = $("p.title span").html();
-        // alert(GM_getValue("autoDownload", "n"));
+        console.log("autoDownload:"+GM_getValue("autoDownload", "n"));
         if (GM_getValue("autoDownload", "n") === 'p') {
+            console.log("开始自动下载");
             let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
             setting.imageNameTemplate = templateSetting.imageNameTemplate;
             setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
