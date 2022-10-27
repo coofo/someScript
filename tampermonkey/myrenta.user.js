@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.5
+// @version      0.1.6
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -102,25 +102,32 @@
 
     let urlMatch = null;
     if ((urlMatch = url.match(tools.myrenta.regex.bookUrl)) != null) {
-        $('#addMyList').next().after('<a id="saveBookInfo" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">暂存信息</a>');
+        //介绍页面
+        //添加按钮
+        $('#addMyList').next().after(`<a id="saveBookInfo" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">暂存信息</a>
+                                      <a id="autoDownload" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">auto（test）</a>`);
 
-        $('#saveBookInfo').click(async function () {
-            // console.log(GM_getValue("bookInfo",{}));
+        let saveBookInfo = async function () {
             let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o => $(o).html());
             publisher.push('myrenta');
             let summaries = [];
 
             let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
-            for (let i = 0; i < volBtns.length; i++) {
-                let div = volBtns[i];
-                $(div).click();
-
-                await new Promise(resolve => setTimeout(() => resolve(), 0));
+            let i = 0;
+            do {
+                let div = null;
+                if (volBtns.length > 0) {
+                    div = volBtns[i];
+                    $(div).click();
+                    await new Promise(resolve => setTimeout(() => resolve(), 0));
+                }
                 $(".other-vols").toArray().map(o => summaries.push({
                     title: $(o).find("h4").text().trim(),
                     summary: $(o).find(".intro-text p").text().trim()
                 }));
-            }
+
+                i++;
+            } while (i < volBtns.length);
 
             let info = {
                 bookId: urlMatch[1],
@@ -131,6 +138,13 @@
                 summarys: summaries
             };
             GM_setValue("bookInfo", info);
+            return info;
+        };
+
+        //暂存触发
+        $('#saveBookInfo').click(async function () {
+            // console.log(GM_getValue("bookInfo",{}));
+            let info = await saveBookInfo();
             let htmlEscape = coofoUtils.commonUtils.xss.htmlEscape;
             let html = '';
             for (let n in info) {
@@ -153,7 +167,51 @@
             });
         });
 
+        //全自动触发
+        $('#autoDownload').click(async function () {
+            await saveBookInfo();
+
+            let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
+            let i = 0;
+            do {
+                let div = null;
+                if (volBtns.length > 0) {
+                    div = volBtns[i];
+                    $(div).click();
+                    await new Promise(resolve => setTimeout(() => resolve(), 0));
+                }
+
+                let otherVols = $("div.other-vols").toArray();
+                for (let j = 0; j < otherVols.length; j++) {
+                    let otherVolsDiv = $(otherVols[j]);
+
+                    let starReading = otherVolsDiv.find("a.start-reading");
+                    if (starReading.length > 0) {
+                        GM_setValue("autoDownload", "p");
+                        starReading.click();
+                        await new Promise(async (resolve, reject) => {
+                            let status = "p";
+                            do {
+                                await new Promise(resolve => setTimeout(() => resolve(), 1000));
+                                status = GM_getValue("autoDownload", "n");
+                            } while (status !== "f");
+                            resolve();
+                        });
+                        GM_deleteValue("autoDownload");
+                    }
+                }
+                i++;
+            } while (i < volBtns.length);
+
+            Swal.fire({
+                title: "auto finished",
+                icon: "success"
+            });
+        });
+
+
     } else if ((urlMatch = url.match(tools.myrenta.regex.bookDetailUrl)) != null) {
+        //阅读页面
 
         /**
          * 下载线程数量
@@ -182,7 +240,7 @@
             btn.html(msg);
         };
 
-        let download = function (bookInfo) {
+        let download = function (bookInfo, r) {
             if (tools.runtime.nowDownloading) return;
             tools.runtime.nowDownloading = true;
 
@@ -292,6 +350,7 @@
                                         let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
                                         coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
                                         tools.runtime.downloadTask.showFinished(completeNum, retryTimesOutNum);
+                                        if (typeof r === 'function') r();
                                     });
                                 }
                             })
@@ -374,6 +433,29 @@
                 download({});
             }
         });
+
+
+        let title = $("p.title span").html();
+        // alert(GM_getValue("autoDownload", "n"));
+        if (GM_getValue("autoDownload", "n") === 'p') {
+            let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
+            setting.imageNameTemplate = templateSetting.imageNameTemplate;
+            setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
+            setting.zipNameTemplate = templateSetting.zipNameTemplate;
+
+            let info = GM_getValue("bookInfo", {});
+
+            let finished = function () {
+                GM_setValue("autoDownload", "f");
+            };
+
+            if (title.startsWith(info.bookName)) {
+                download(info, finished);
+            } else {
+                download({}, finished);
+            }
+
+        }
     }
 
 })((function () {
