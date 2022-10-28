@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.8
+// @version      0.1.9
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -208,6 +208,13 @@
                             do {
                                 await new Promise(resolve => setTimeout(() => resolve(), 1000));
                                 status = GM_getValue("autoDownload", "n");
+                                if(status === 'e'){
+                                    Swal.fire({
+                                        title: "auto error",
+                                        icon: "error"
+                                    });
+                                    throw status;
+                                }
                             } while (status !== "f");
                             resolve();
                         });
@@ -534,18 +541,15 @@
             let finished = function () {
                 Swal.fire("自动下载成功", "该页面将自动关闭", "success");
                 GM_setValue("autoDownload", "f");
-                window.close();
+                // window.close();
             };
 
             if (!title.startsWith(info.bookName)) {
                 info = {};
             }
-            download(info).then(() => finished(),()=>{
-
-                let finished = function () {
-                    Swal.fire("自动下载失败", null, "error");
-                    GM_setValue("autoDownload", "e");
-                };
+            download(info).then(() => finished(), () => {
+                Swal.fire("自动下载失败", null, "error");
+                GM_setValue("autoDownload", "e");
             });
 
         }
