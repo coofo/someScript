@@ -12,7 +12,9 @@
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html(\?.*)?$/
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1088510
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
+// @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
+// @require      https://greasyfork.org/scripts/453329-coofoutils-comicinfo/code/coofoUtils-comicInfo.js?version=1106598
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -169,6 +171,15 @@
 
         //全自动触发
         $('#autoDownload').click(async function () {
+
+            Swal.fire({
+                icon: 'warning',
+                title: '自动下载中',
+                html: `<div id="status"></div>`,
+                footer: `请勿关闭该页面`,
+                showConfirmButton: false
+            });
+
             await saveBookInfo();
 
             let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
@@ -440,7 +451,20 @@
         let title = $("p.title span").html();
         console.log("autoDownload:"+GM_getValue("autoDownload", "n"));
         if (GM_getValue("autoDownload", "n") === 'p') {
-            console.log("开始自动下载");
+
+            Swal.fire({
+                icon: 'warning',
+                title: '自动下载中',
+                html: `<div id="status"></div>`,
+                footer: `请勿关闭该页面`,
+                showConfirmButton: false
+            });
+
+            let status = $("#status");
+            tools.runtime.downloadTask.showMsg = function (msg) {
+                status.html(msg);
+            };
+
             let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
             setting.imageNameTemplate = templateSetting.imageNameTemplate;
             setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
@@ -449,7 +473,9 @@
             let info = GM_getValue("bookInfo", {});
 
             let finished = function () {
+                Swal.fire("自动下载成功", "该页面将自动关闭", "success");
                 GM_setValue("autoDownload", "f");
+                window.close();
             };
 
             if (title.startsWith(info.bookName)) {
