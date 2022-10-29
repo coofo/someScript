@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.9
+// @version      0.1.10
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -45,7 +45,7 @@
     /**
      * zip文件名格式（包括路径）
      */
-    setting.def.zipNameTemplate = "[myrenta]${itemId_squareBracket}${originalTitle}";
+    setting.def.zipNameTemplate = "[myrenta]${bookId_squareBracket}${bookName}";
 
 
     //设置按钮
@@ -106,6 +106,7 @@
     let urlMatch = null;
     if ((urlMatch = url.match(tools.myrenta.regex.bookUrl)) != null) {
         //介绍页面
+
         //添加按钮
         $('#addMyList').next().after(`<a id="saveBookInfo" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">暂存信息</a>
                                       <a id="autoDownload" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">auto（test）</a>`);
@@ -173,6 +174,19 @@
         //全自动触发
         $('#autoDownload').click(async function () {
 
+            let postMsgInfo = {listener: null};
+
+            let eventFunction = function (e) {
+                console.log("get message");
+                console.log(e);
+                if (typeof postMsgInfo.listener === 'function') {
+                    console.log("do message");
+                    postMsgInfo.listener(e);
+                }
+            };
+            console.log("init message EventListener");
+            window.addEventListener("message", eventFunction);
+
             Swal.fire({
                 icon: 'warning',
                 title: '自动下载中',
@@ -181,7 +195,8 @@
                 showConfirmButton: false
             });
 
-            await saveBookInfo();
+            let info = await saveBookInfo();
+            let cbzInfoArray = [];
 
             let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
             let i = 0;
@@ -200,34 +215,64 @@
 
                     let starReading = otherVolsDiv.find("a.start-reading");
                     if (starReading.length > 0) {
-                        GM_setValue("autoDownload", "p");
                         console.log("打开第" + (j + 1));
                         starReading.click();
-                        await new Promise(async (resolve, reject) => {
-                            let status = "p";
-                            do {
-                                await new Promise(resolve => setTimeout(() => resolve(), 1000));
-                                status = GM_getValue("autoDownload", "n");
-                                if(status === 'e'){
-                                    Swal.fire({
-                                        title: "auto error",
-                                        icon: "error"
-                                    });
-                                    throw status;
+
+                        let cbzInfo = await new Promise((resolve, reject) => {
+                            postMsgInfo.listener = e => {
+                                if (e.origin === 'https://reader.myrenta.com') {
+                                    if (e.data === "auto download?") {
+                                        console.log("send download");
+                                        e.source.postMessage({
+                                            msg: "auto download",
+                                            info: info
+                                        }, 'https://reader.myrenta.com');
+                                    } else if (e.data.msg === "auto download success") {
+                                        resolve(e.data.data);
+                                    } else if (e.data === "auto download error") {
+                                        Swal.fire({
+                                            title: "auto error",
+                                            icon: "false"
+                                        });
+
+                                        window.removeEventListener("message", eventFunction);
+                                        reject();
+                                    }
                                 }
-                            } while (status !== "f");
-                            resolve();
+                            }
                         });
-                        GM_deleteValue("autoDownload");
+                        cbzInfo.forEach(info => cbzInfoArray.push(info));
                     }
                 }
                 i++;
             } while (i < volBtns.length);
 
-            Swal.fire({
-                title: "auto finished",
-                icon: "success"
-            });
+            if (cbzInfoArray.length > 0) {
+                //创建zip
+                let zip = new JSZip();
+                cbzInfoArray.forEach(cbzInfo => zip.file(cbzInfo.name, cbzInfo.cbzFile));
+
+                let zipFile = await zip.generateAsync({type: "blob", compression: "STORE"});
+
+                let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
+                let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(templateSetting.zipNameTemplate, info) + ".zip";
+
+                coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
+
+                Swal.fire({
+                    title: "下载完成",
+                    icon: "success"
+                });
+            } else {
+
+                Swal.fire({
+                    title: "下载内容为空",
+                    icon: "warning"
+                });
+            }
+
+
+            window.removeEventListener("message", eventFunction);
         });
 
 
@@ -439,7 +484,7 @@
             throw "url not match";
         }
 
-        let download = (bookInfo) => downloadDif(bookInfo).then(async context => {
+        let downloadCbz = bookInfo => downloadDif(bookInfo).then(async context => {
             //创建cbz
             let cbzCompleteNum = 0;
 
@@ -452,6 +497,11 @@
 
             await Promise.all(cbzGenerateTasks);
 
+            return context;
+        });
+
+        //触发下载的
+        let download = (bookInfo) => downloadCbz(bookInfo).then(async context => {
             //创建zip
             let zipFile = await new Promise(resolve => tools.myrenta.downloadHelp.generateZip(context, zipFile => resolve(zipFile)));
 
@@ -459,6 +509,23 @@
             let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
             coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
             tools.runtime.downloadTask.showFinished(tools.runtime.downloadTask.downloadTaskNum, 0);
+        });
+
+        //自动下载的
+        let autoDownload = (bookInfo) => downloadCbz(bookInfo).then(async context => {
+            tools.runtime.downloadTask.showFinished(tools.runtime.downloadTask.downloadTaskNum, 0);
+            if (context.items.length <= 0) {
+                return [];
+            } else {
+                return context.items.map(item => {
+                    let info = Object.assign({}, item.parent.bookInfo, item.itemInfo);
+                    let name = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.cbzNameTemplate, info) + ".cbz";
+                    let cbzFile = item.cbzFile;
+                    //释放
+                    item.cbzFile = null;
+                    return {name: name, cbzFile: cbzFile};
+                });
+            }
         });
 
         //++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -513,45 +580,49 @@
             }
         });
 
+        if (typeof window.opener === 'object') {
+            (async function () {
+                console.log("init message EventListener");
+                window.addEventListener("message", e => {
+                    console.log(e);
+                    if (e.origin === 'https://tw.myrenta.com' && e.data.msg === "auto download") {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: '自动下载中',
+                            html: `<div id="status"></div>`,
+                            footer: `请勿关闭该页面`,
+                            showConfirmButton: false
+                        });
 
-        let title = $("p.title span").html();
-        console.log("autoDownload:" + GM_getValue("autoDownload", "n"));
-        if (GM_getValue("autoDownload", "n") === 'p') {
+                        let status = $("#status");
+                        tools.runtime.downloadTask.showMsg = function (msg) {
+                            status.html(msg);
+                        };
 
-            Swal.fire({
-                icon: 'warning',
-                title: '自动下载中',
-                html: `<div id="status"></div>`,
-                footer: `请勿关闭该页面`,
-                showConfirmButton: false
-            });
+                        let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
+                        setting.imageNameTemplate = templateSetting.imageNameTemplate;
+                        setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
+                        setting.zipNameTemplate = templateSetting.zipNameTemplate;
 
-            let status = $("#status");
-            tools.runtime.downloadTask.showMsg = function (msg) {
-                status.html(msg);
-            };
+                        let info = e.data.info;
 
-            let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
-            setting.imageNameTemplate = templateSetting.imageNameTemplate;
-            setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
-            setting.zipNameTemplate = templateSetting.zipNameTemplate;
-
-            let info = GM_getValue("bookInfo", {});
-
-            let finished = function () {
-                Swal.fire("自动下载成功", "该页面将自动关闭", "success");
-                GM_setValue("autoDownload", "f");
-                // window.close();
-            };
-
-            if (!title.startsWith(info.bookName)) {
-                info = {};
-            }
-            download(info).then(() => finished(), () => {
-                Swal.fire("自动下载失败", null, "error");
-                GM_setValue("autoDownload", "e");
-            });
-
+                        autoDownload(info).then(
+                            cbzInfo => {
+                                Swal.fire("自动下载成功", "该页面将自动关闭", "success");
+                                window.opener.postMessage({
+                                    msg: "auto download success",
+                                    data: cbzInfo
+                                }, 'https://tw.myrenta.com');
+                            }, () => {
+                                Swal.fire("自动下载失败", null, "error");
+                                window.opener.postMessage("auto download error", 'https://tw.myrenta.com');
+                            }).then(() => window.close());
+                    }
+                });
+                await new Promise(resolve => setTimeout(() => resolve(), 0));
+                console.log("send auto download?");
+                window.opener.postMessage("auto download?", 'https://tw.myrenta.com');
+            })();
         }
     }
 
