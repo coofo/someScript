@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.7
+// @version      0.2.8
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -474,6 +474,11 @@
             downloadHelp: {
                 generateTask: function (taskItem, chapter) {
                     tools.manwa.api.getImgUrl(chapter.chapterInfo.chapterId, function (imgUrls, info) {
+                        if (imgUrls.length <= 0) {
+                            //如果获取到的图片列表为空，则为获取失败
+                            taskItem.failed();
+                            return;
+                        }
                         for (let j = 0; j < imgUrls.length; j++) {
                             let imgUrl = imgUrls[j];
 
@@ -482,7 +487,7 @@
                             if (qIdx < 0) {
                                 noQUrl = imgUrl;
                             } else {
-                                noQUrl = imgUrl.substring(0,qIdx);
+                                noQUrl = imgUrl.substring(0, qIdx);
                             }
                             let suffix = coofoUtils.commonUtils.format.file.getSuffix(noQUrl);
                             if (suffix.length > 0) {
@@ -492,7 +497,7 @@
                             chapter.images.push({
                                 parent: chapter,
                                 imgUrl: imgUrl,
-                                imageInfo:{
+                                imageInfo: {
                                     index: coofoUtils.commonUtils.format.num.fullNum(index, 3),
                                     suffix: suffix
                                 },
