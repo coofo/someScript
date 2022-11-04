@@ -190,9 +190,9 @@
             types: [],
             bookInfo: {
                 bookId: urlMatch[1],
-                bookName: $("div.detail-main p.detail-main-info-title").html(),
-                author: $("p.detail-main-info-author:contains(作者) a").toArray().map(o => $(o).html()).join(','),
-                tag: $(".info-tag-span").toArray().map(o => $(o).html()).join(','),
+                bookName: $("div.detail-main p.detail-main-info-title").text(),
+                author: $("p.detail-main-info-author:contains(作者) a").toArray().map(o => $(o).text()).join(','),
+                tag: $(".info-tag-span").toArray().map(o => $(o).text()).join(','),
                 summary: $(".detail-desc").text()
             }
         });
@@ -460,9 +460,9 @@
 
                             let info = {
                                 // bookId: divSelector.find("div.view-fix-top-bar-right a").attr("href").match(tools.manwa.regex.bookUrl)[1],
-                                // bookName: divSelector.find("div.view-fix-top-bar-center-right-book-name").html().trim(),
+                                // bookName: divSelector.find("div.view-fix-top-bar-center-right-book-name").text().trim(),
                                 chapterId: chapterId,
-                                chapterName: divSelector.find("div.view-fix-top-bar-center-right-chapter-name").html().trim(),
+                                chapterName: divSelector.find("div.view-fix-top-bar-center-right-chapter-name").text().trim(),
                             };
                             onSuccess(imgUrls, info);
                         },

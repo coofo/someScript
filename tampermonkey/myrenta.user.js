@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.10
+// @version      0.1.11
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -112,7 +112,7 @@
                                       <a id="autoDownload" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">auto（test）</a>`);
 
         let saveBookInfo = async function () {
-            let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o => $(o).html());
+            let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o => $(o).text());
             publisher.push('myrenta');
             let summaries = [];
 
@@ -135,10 +135,10 @@
 
             let info = {
                 bookId: urlMatch[1],
-                bookName: $('div.main>div.breadcrumbs>a:last').html(),
-                author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').html(),
+                bookName: $('div.main>div.breadcrumbs>a:last').text(),
+                author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').text(),
                 publisher: publisher,
-                tag: $('.btn-tag').toArray().map(o => $(o).html()),
+                tag: $('.btn-tag').toArray().map(o => $(o).text()),
                 summarys: summaries
             };
             GM_setValue("bookInfo", info);
@@ -301,7 +301,7 @@
             context.zip = new JSZip();
             context.bookInfo = bookInfo;
 
-            let originalTitle = $("p.title span").html();
+            let originalTitle = $("p.title span").text();
             bookInfo.originalTitle = originalTitle;
             let title = originalTitle;
             if ("bookName" in bookInfo) {
@@ -553,7 +553,7 @@
             }
             if (infoNum > 0) {
                 let icon;
-                if ($("p.title span").html().startsWith(info.bookName)) {
+                if ($("p.title span").text().startsWith(info.bookName)) {
                     icon = 'success';
                 } else {
                     icon = 'warning';
