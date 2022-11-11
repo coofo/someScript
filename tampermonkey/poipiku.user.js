@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.1
+// @version      0.2.2
 // @license      AGPL License
 // @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
@@ -532,9 +532,11 @@
                     context.items
                         .flatMap(item => item.images)
                         .forEach(image => {
-                            let info = Object.assign({}, image.parent.parent.info, image.parent.info, image.info);
-                            let name = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.imageNameTemplate, info) + image.info.suffix;
-                            zip.file(name, image.file);
+                            if(image.file !== null){
+                                let info = Object.assign({}, image.parent.parent.info, image.parent.info, image.info);
+                                let name = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.imageNameTemplate, info) + image.info.suffix;
+                                zip.file(name, image.file);
+                            }
                         });
                     zip.generateAsync({type: "blob", compression: "STORE"}).then(onFinished);
                 },
