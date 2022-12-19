@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.10
+// @version      0.2.11
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -24,6 +24,7 @@
 // @connect      img.manwa.city
 // @connect      img.manwa.space
 // @connect      img.manwa.cloud
+// @connect      mwfimsvfast.co
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
