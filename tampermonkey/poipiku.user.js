@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.2
+// @version      0.2.3
 // @license      AGPL License
 // @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
@@ -523,7 +523,8 @@
                             taskItem.success();
                             tools.runtime.downloadTask.refreshDownLoadStatus();
                         } else {
-                            taskItem.failed();
+                            console.error(responseDetails);
+                            setTimeout(() => taskItem.failed(), 500);
                         }
                     })
                 },
@@ -532,7 +533,7 @@
                     context.items
                         .flatMap(item => item.images)
                         .forEach(image => {
-                            if(image.file !== null){
+                            if (image.file !== null) {
                                 let info = Object.assign({}, image.parent.parent.info, image.parent.info, image.info);
                                 let name = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.imageNameTemplate, info) + image.info.suffix;
                                 zip.file(name, image.file);
