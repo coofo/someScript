@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.1
+// @version      0.3.2
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -237,6 +237,12 @@
                             window.URL.revokeObjectURL(aLink.href);
                             document.body.removeChild(aLink);
                         }
+                    },
+                    asHref4Blob: function (content, fileName) {
+                        let blob = new Blob([content], {type: content.type});
+                        let file = new File([blob], fileName, {type: blob.type});
+                        let url = window.URL.createObjectURL(file);
+                        window.open(url)
                     },
                     asForm: function (url, method, data = null) {
                         //新建form表单
