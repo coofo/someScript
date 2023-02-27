@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.2
+// @version      0.3.3
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -242,7 +242,7 @@
                         let blob = new Blob([content], {type: content.type});
                         let file = new File([blob], fileName, {type: blob.type});
                         let url = window.URL.createObjectURL(file);
-                        window.open(url)
+                        window.open(url, "_self")
                     },
                     asForm: function (url, method, data = null) {
                         //新建form表单

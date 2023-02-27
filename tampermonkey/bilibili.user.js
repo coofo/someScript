@@ -1,26 +1,26 @@
 // ==UserScript==
-// @name         bilibili动态下载
+// @name         bilibili用户带图动态下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.1
+// @version      0.0.2
 // @license      AGPL License
-// @description  bilibili动态下载
+// @description  bilibili用户带图动态下载
 // @author       coofo
 // @updateURL    https://github.com/coofo/someScript/raw/main/tampermonkey/bilibili.user.js
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/bilibili.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
-// @include      /^https://space.bilibili.com/\d+/dynamic/
+// @include      /^https://space.bilibili.com/\d+/
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
+// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1153835
 // @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
 // @require      https://greasyfork.org/scripts/453329-coofoutils-comicinfo/code/coofoUtils-comicInfo.js?version=1106598
 // @grant        GM_download
-// @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_notification
+// @grant        window.focus
 // ==/UserScript==
 
 
@@ -101,6 +101,9 @@
     });
 
     $(document).on('mouseover', ".bili-dyn-list__item", function () {
+        if (location.href.match(/^https:\/\/space.bilibili.com\/\d+/) === null) {
+            return;
+        }
         let item = $(this);
         if (item.attr('bilibiliAddDownload') === 'done') {
             return;
@@ -122,7 +125,7 @@
         let desc = item.find('.bili-dyn-item__main>.bili-dyn-item__body>.bili-dyn-content>.bili-dyn-content__orig>.bili-dyn-content__orig__desc span').text();
         let imgs = item.find('.bili-dyn-item__main>.bili-dyn-item__body>.bili-dyn-content>.bili-dyn-content__orig>.bili-dyn-content__orig__major>.bili-album>.bili-album__preview>.bili-album__preview__picture>.bili-album__preview__picture__img')
             .toArray().map(div => tools.bilibili.downloadHelp.getUrlFromDiv($(div)));
-        console.log(userName, desc, imgs)
+        console.log(userName, desc, imgs);
 
         let downloadPromiseList = [];
         for (let i = 0; i < imgs.length; i++) {
@@ -153,18 +156,7 @@
 
             let zipFile = await zip.generateAsync({type: "blob", compression: "STORE"});
             let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, info) + ".zip";
-
-            let asHref4Blob = function (content, fileName) {
-                let blob = new Blob([content], {type: content.type});
-                let file = new File([blob], fileName, {type: blob.type});
-                let url = window.URL.createObjectURL(file);
-                window.open(url)
-            }
-            asHref4Blob(zipFile, zipFileName);
-            // let blob = new Blob([zipFile], {type: 'application/zip'});
-            // let file = new File([blob], zipFileName, {type: 'application/zip'});
-            // let url = window.URL.createObjectURL(file);
-            // window.open(url,"_blank")
+            coofoUtils.commonUtils.downloadHelp.toUser.asHref4Blob(zipFile, zipFileName);
         }, () => {
             Swal.fire("下载失败");
         });
@@ -197,12 +189,12 @@
                             } else {
                                 rej();
                             }
-                        }
+                        };
                         request.onerror = () => {
                             rej();
                         };
                         request.send();
-                    }, tools.setting.threadNum);
+                    }, tools.setting.downloadRetryTimes);
                 }
             }
         }
