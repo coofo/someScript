@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.11
+// @version      0.2.12
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -193,7 +193,7 @@
             types: [],
             bookInfo: {
                 bookId: urlMatch[1],
-                bookName: $("div.detail-main p.detail-main-info-title").text(),
+                bookName: $("div.detail-main .detail-main-info-title").text(),
                 author: $("p.detail-main-info-author:contains(作者) a").toArray().map(o => $(o).text()).join(','),
                 tag: $(".info-tag-span").toArray().map(o => $(o).text()).join(','),
                 summary: $(".detail-desc").text()
