@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         poipiku图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.3
+// @version      0.2.4
 // @license      AGPL License
 // @description  poipiku图片下载的试做，需要key才能看的图片要输入key后才能下载
 // @author       coofo
@@ -10,7 +10,7 @@
 // @include      /^https://poipiku\.com/\d+/\d+\.html/
 // @include      /^https://poipiku\.com/(\d+)(/?$|/?\?)/
 // @include      /^https://poipiku.com/IllustListPcV\.jsp\?.*ID=(\d+)/
-// @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
+// @require      https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.7.12/sweetalert2.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
 // @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
