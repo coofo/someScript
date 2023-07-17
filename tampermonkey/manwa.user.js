@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.13
+// @version      0.2.18
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -41,7 +41,7 @@
 
     Object.assign(setting, {
         def: {
-            imageNameTemplate:"${index}",
+            imageNameTemplate: "${index}",
             /**
              * 文件名格式（包括路径）
              */
@@ -62,7 +62,11 @@
         /**
          *
          */
-        waitTime: 5000,
+        waitTime: 1000 * 60 * 3,
+
+        randomWaitTime: 1000 * 60 * 3,
+
+        urlRetryTimes: 1,
 
         /**
          * 下载失败重试次数
@@ -317,13 +321,19 @@
                 let chapterPromise = coofoUtils.service.retryablePromise.create((res, rej) => {
                     //获取图片url
                     getUrlPool.execute((resPool, rejPool) => {
+                        let waitTime = 0;
+                        if (setting.isNotFirst) {
+                            waitTime = setting.waitTime + (setting.randomWaitTime * Math.random());
+                        } else {
+                            setting.isNotFirst = true;
+                        }
                         setTimeout(() => tools.manwa.downloadHelp.generateTask({
                             success: resPool,
                             failed: rejPool
-                        }, chapter), setting.waitTime)
+                        }, chapter), waitTime)
                     }).then(r => res(r), r => rej(r));
 
-                }, setting.downloadRetryTimes).then(() => {
+                }, setting.urlRetryTimes).then(() => {
                     //下载图片
                     let downloadPromises = [];
                     chapter.images.forEach(image => {
@@ -352,7 +362,8 @@
                 promises.push(chapterPromise);
             }
         }
-        Promise.all(promises).then(() => resolve(), r => reject(r));
+        // Promise.all(promises).then(() => resolve(), r => reject(r));
+        Promise.all(promises).then(() => resolve(), r => resolve(r));
 
         promise.then(() => {
             //创建zip
@@ -362,17 +373,17 @@
             let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
             coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
             tools.runtime.downloadTask.showFinished(tools.runtime.downloadTask.downloadedTaskNum, 0);
-            Swal.fire({
-                icon: 'success',
-                title: '下载完成'
-            });
+            // Swal.fire({
+            //     icon: 'success',
+            //     title: '下载完成'
+            // });
+
+            Promise.all(promises).then(() => Swal.fire({icon: 'success', title: '下载完成'}),
+                    r => Swal.fire('下载失败', r, 'error'));
         }, r => {
             Swal.fire('下载失败', r, 'error');
         });
     });
-
-
-
 
 
 })((function () {
@@ -397,8 +408,8 @@
                     let totalNum = tools.runtime.downloadTask.generateTaskNum;
                     $('#progressGT').html(`解析 （${completeNum}/${totalNum}）`);
                     let progress = $('#progressG');
-                    progress.attr("value",completeNum);
-                    progress.attr("max",totalNum);
+                    progress.attr("value", completeNum);
+                    progress.attr("max", totalNum);
                     tools.runtime.downloadTask.refreshStatus("解析地址", completeNum, totalNum);
                 },
                 refreshDownLoadStatus: function () {
@@ -406,8 +417,8 @@
                     let totalNum = tools.runtime.downloadTask.downloadTaskNum;
                     $('#progressDT').html(`下载 （${completeNum}/${totalNum}）`);
                     let progress = $('#progressD');
-                    progress.attr("value",completeNum);
-                    progress.attr("max",totalNum);
+                    progress.attr("value", completeNum);
+                    progress.attr("max", totalNum);
                     tools.runtime.downloadTask.refreshStatus("下载", completeNum, totalNum);
                 },
                 refreshStatus: function (name, completeNum, totalNum) {
@@ -453,7 +464,10 @@
                         contentType: "text/html; charset=utf-8",
                         success: function (request) {
                             // console.log(request);
-
+                            if (request.includes("如果你看到这个讯息，你可能使用了其他不正常浏览器（或是快速打开多个分页）")) {
+                                onError();
+                                return;
+                            }
                             let div = document.createElement("div");
                             div.innerHTML = request;
                             let imgUrls = [];
@@ -526,7 +540,7 @@
                     request.open("GET", url, !0);
                     request.responseType = "arraybuffer";
                     request.onload = function () {
-                        if(200 === request.status){
+                        if (200 === request.status) {
                             let r = request.response;
                             let a = "my2ecret782ecret";
                             let i = CryptoJS.enc.Utf8.parse(a);
@@ -547,7 +561,7 @@
                             taskItem.success();
                             tools.runtime.downloadTask.downloadedTaskNum++;
                             tools.runtime.downloadTask.refreshDownLoadStatus();
-                        }else{
+                        } else {
                             console.error("download error: " + url);
                             console.error(a.status);
                             taskItem.failed();
