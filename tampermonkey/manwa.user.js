@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.2.12
+// @version      0.2.13
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -57,7 +57,12 @@
          * 下载线程数量
          * @type {number}
          */
-        threadNum: 8,
+        threadNum: 2,
+
+        /**
+         *
+         */
+        waitTime: 5000,
 
         /**
          * 下载失败重试次数
@@ -315,7 +320,7 @@
                         setTimeout(() => tools.manwa.downloadHelp.generateTask({
                             success: resPool,
                             failed: rejPool
-                        }, chapter), 500)
+                        }, chapter), setting.waitTime)
                     }).then(r => res(r), r => rej(r));
 
                 }, setting.downloadRetryTimes).then(() => {
