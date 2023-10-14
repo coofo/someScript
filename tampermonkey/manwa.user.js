@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.0
+// @version      0.3.1
 // @license      AGPL License
 // @description  下载
 // @author       coofo
 // @updateURL    https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/manwa.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
-// @include      /^https://(manwa|mwcomic6).(me|live|vip|fun|one|pro|city|space|cloud|co)/book/\d+/
-// @include      /^https://(manwa|mwcomic6).(me|live|vip|fun|one|pro|city|space|cloud|co)/chapter/\d+/
+// @include      /^https://(manwa|mwcomic\d*).(me|live|vip|fun|one|pro|city|space|cloud|co|online)/book/\d+/
+// @include      /^https://(manwa|mwcomic\d*).(me|live|vip|fun|one|pro|city|space|cloud|co|online)/chapter/\d+/
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
@@ -721,8 +721,8 @@
 
         manwa: {
             regex: {
-                bookUrl: /^https:\/\/(manwa|mwcomic6).[a-zA-Z]+\/book\/(\d+)/,
-                chapterUrl: /https:\/\/(manwa|mwcomic6).[a-zA-Z]+\/chapter\/(\d+)/,
+                bookUrl: /^https:\/\/(manwa|mwcomic\d*).[a-zA-Z]+\/book\/(\d+)/,
+                chapterUrl: /https:\/\/(manwa|mwcomic\d*).[a-zA-Z]+\/chapter\/(\d+)/,
                 archiveUrl: /^https:\/\/healthywawa.com\/archives\/(\d+)/,
                 dataUrl: /^https:\/\/manwa.[a-zA-Z]+\/forInject\/(\d+).html/
             },
