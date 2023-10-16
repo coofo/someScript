@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.1
+// @version      0.3.2
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -101,9 +101,9 @@
         /**
          *
          */
-        scrollSpeed: 800,
+        scrollSpeed: 400,
 
-        scrollTimeout: 500,
+        scrollTimeout: 1000,
 
         urlRetryTimes: 1,
 
@@ -232,6 +232,7 @@
             tools.runtime.nowDownloading = true;
 
             Object.assign(setting, setting.def, GM_getValue("templateSetting", {}));
+            Object.assign(setting, setting.def, GM_getValue("scrollSetting", {}));
 
             let context = tools.runtime.downloadTask;
 
@@ -454,10 +455,8 @@
             });
 
             //初始化命名规则
-            let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
-            setting.imageNameTemplate = templateSetting.imageNameTemplate;
-            setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
-            setting.zipNameTemplate = templateSetting.zipNameTemplate;
+            Object.assign(setting, setting.def, GM_getValue("templateSetting", {}));
+            Object.assign(setting, setting.def, GM_getValue("scrollSetting", {}));
 
             let context = tools.runtime.downloadTask;
             context.zip = new JSZip();
