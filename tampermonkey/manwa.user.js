@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.3
+// @version      0.3.4
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -103,7 +103,7 @@
          */
         scrollSpeed: 400,
 
-        scrollTimeout: 1000,
+        scrollTimeout: 1500,
 
         urlRetryTimes: 1,
 
@@ -174,6 +174,8 @@
 
     });
 
+    Object.assign(setting, GM_getValue("scrollSetting", {}));
+
     if (tools.manwa.utils.isBookPage()) {
         //目录页
 
@@ -232,7 +234,6 @@
             tools.runtime.nowDownloading = true;
 
             Object.assign(setting, setting.def, GM_getValue("templateSetting", {}));
-            Object.assign(setting, GM_getValue("scrollSetting", {}));
 
             let context = tools.runtime.downloadTask;
 
@@ -456,7 +457,6 @@
 
             //初始化命名规则
             Object.assign(setting, setting.def, GM_getValue("templateSetting", {}));
-            Object.assign(setting, GM_getValue("scrollSetting", {}));
 
             let context = tools.runtime.downloadTask;
             context.zip = new JSZip();
