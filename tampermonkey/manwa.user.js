@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.4
+// @version      0.3.5
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -657,6 +657,70 @@
                 }
             });
         });
+
+        //添加下载封面按钮
+        GM_registerMenuCommand("下载封面", function () {
+            let bookUrl = $("div.view-fix-top-bar-right a").toArray()
+                .map(a => a.href)
+                .filter(href => href.indexOf("/book/") >= 0)[0];
+            $.ajax({
+                url: bookUrl,
+                type: 'get',
+                contentType: "text/html; charset=utf-8",
+                success: function (request) {
+                    let div = document.createElement("div");
+                    div.innerHTML = request;
+                    let divSelector = $(div);
+                    let bookInfo = tools.manwa.utils.getBookInfo(bookUrl, divSelector);
+
+                    let targetImg = document.createElement("img");
+                    targetImg.onload = function () {
+                        let targetWidth = targetImg.width;
+
+                        let coverImg = document.createElement("img");
+                        coverImg.setAttribute('crossOrigin','Anonymous');
+                        coverImg.src = bookInfo.coverUrl;
+                        coverImg.onload = function () {
+                            let srcWidth = coverImg.width;
+                            let srcHeight = coverImg.height;
+                            if (srcWidth === 0 || srcHeight === 0) {
+                                Swal.fire('下载失败', `封面分辨率获取异常：${srcWidth} * ${srcHeight}`, 'error');
+                                return;
+                            }
+                            let canvas = document.createElement('canvas');
+                            canvas.width = targetWidth;
+                            canvas.height = (canvas.width / srcWidth) * srcHeight;
+                            let ctx = canvas.getContext("2d");
+                            ctx.drawImage(coverImg, 0, 0, canvas.width, canvas.height);
+                            let a = document.createElement("a");
+                            a.download = "000.webp";
+                            a.href = canvas.toDataURL("image/webp");
+                            a.click();
+                        }
+                    };
+                    targetImg.src = $("div.view-main-1 img.content-img")[0].src;
+
+                },
+                error: () => {
+                    Swal.fire('下载失败', '获取bookInfo页面失败', 'error');
+                }
+            });
+        });
+
+        //添加左右键翻页
+        document.addEventListener('keyup', function (event) {
+            if (event.key === 'ArrowLeft') {
+                let aArray = $('a.view-fix-bottom-bar-item-menu-prev');
+                if (aArray.length > 0) {
+                    aArray[0].click();
+                }
+            } else if (event.key === 'ArrowRight') {
+                let aArray = $('a.view-fix-bottom-bar-item-menu-next');
+                if (aArray.length > 0) {
+                    aArray[0].click();
+                }
+            }
+        })
     }
 
 
@@ -790,7 +854,8 @@
                         bookName: selector.find("div.detail-main .detail-main-info-title").text(),
                         author: selector.find("p.detail-main-info-author:contains(作者) a").toArray().map(o => $(o).text()).join(','),
                         tag: selector.find(".info-tag-span").toArray().map(o => $(o).text()).join(','),
-                        summary: selector.find(".detail-desc").text()
+                        summary: selector.find(".detail-desc").text(),
+                        coverUrl: selector.find("div.detail-main-cover img").attr("data-original"),
                     }
                 },
                 getTypeChapterInfo(url, bookDivSelector) {
