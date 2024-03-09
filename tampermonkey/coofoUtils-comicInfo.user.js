@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils-comicInfo
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.1
+// @version      0.0.2
 // @license      MIT License
 // @description  comicInfo扩展包
 // @author       coofo
@@ -17,7 +17,7 @@
                 'Writer', 'Penciller', 'Inker', 'Colorist', 'Letterer', 'CoverArtist', 'Editor', 'Translator',
                 'Publisher', 'Imprint', 'Genre', 'Tags', 'Web', 'Format', 'BlackAndWhite', 'Manga', 'Characters',
                 'Teams', 'Locations', 'ScanInformation', 'StoryArc', 'StoryArcNumber', 'SeriesGroup', 'AgeRating',
-                'CommunityRating', 'PageCount', 'LanguageISO'];
+                'CommunityRating', 'PageCount', 'LanguageISO', 'LocalizedSeries'];
             let xml = "<?xml version='1.0' encoding='utf-8'?>\n";
             xml += '<ComicInfo>\n';
 

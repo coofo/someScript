@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         manwa图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.5
+// @version      0.3.6
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -15,7 +15,7 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
 // @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
-// @require      https://greasyfork.org/scripts/453329-coofoutils-comicinfo/code/coofoUtils-comicInfo.js?version=1106598
+// @require      https://update.greasyfork.org/scripts/453329/1340176/coofoUtils-comicInfo.js
 // @connect      img.manwa.me
 // @connect      img.manwa.live
 // @connect      img.manwa.vip
@@ -284,7 +284,8 @@
                             Writer: context.bookInfo.author,
                             Publisher: 'manwa',
                             Tags: context.bookInfo.tag,
-                            LanguageISO: 'zh'
+                            LanguageISO: 'zh',
+                            LocalizedSeries: context.bookInfo.otherName,
                         })
                     };
                     adultType.chapters.push(chapter);
@@ -327,7 +328,8 @@
                             Writer: context.bookInfo.author,
                             Publisher: 'manwa',
                             Tags: context.bookInfo.tag,
-                            LanguageISO: 'zh'
+                            LanguageISO: 'zh',
+                            LocalizedSeries: context.bookInfo.otherName,
                         })
                     };
                     waterType.chapters.push(chapter);
@@ -479,7 +481,8 @@
                 Writer: bookInfo.author,
                 Publisher: 'manwa',
                 Tags: bookInfo.tag,
-                LanguageISO: 'zh'
+                LanguageISO: 'zh',
+                LocalizedSeries: context.bookInfo.otherName,
             });
 
             let chapter = {
@@ -856,6 +859,7 @@
                         tag: selector.find(".info-tag-span").toArray().map(o => $(o).text()).join(','),
                         summary: selector.find(".detail-desc").text(),
                         coverUrl: selector.find("div.detail-main-cover img").attr("data-original"),
+                        otherName: selector.find("p.detail-main-info-author:contains(别名) span.detail-main-info-value").text(),
                     }
                 },
                 getTypeChapterInfo(url, bookDivSelector) {
