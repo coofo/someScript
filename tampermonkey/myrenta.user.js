@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.11
+// @version      0.1.12
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -304,6 +304,7 @@
             let originalTitle = $("p.title span").text();
             bookInfo.originalTitle = originalTitle;
             let title = originalTitle;
+            let number = null;
             if ("bookName" in bookInfo) {
                 let index = 0;
                 for (let i = 0; i < Math.min(title.length, bookInfo.bookName.length); i++) {
@@ -314,6 +315,9 @@
                     }
                 }
                 title = title.substring(index).trim();
+                if (/^\d+$/.test(title)) {
+                    number = title;
+                }
             }
 
             //ComicInfo.xml
@@ -328,7 +332,8 @@
 
             let xml = coofoUtils.comicInfoUtils.create({
                 Series: context.bookInfo.bookName,
-                Title: context.bookInfo.title,
+                Title: title,
+                Number: number,
                 Summary: summary,
                 Writer: context.bookInfo.author,
                 Publisher: context.bookInfo.publisher.join(','),
