@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.12
+// @version      0.1.13
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -15,7 +15,7 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
 // @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
-// @require      https://greasyfork.org/scripts/453329-coofoutils-comicinfo/code/coofoUtils-comicInfo.js?version=1106598
+// @require      https://update.greasyfork.org/scripts/453329/1340176/coofoUtils-comicInfo.js
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -133,13 +133,19 @@
                 i++;
             } while (i < volBtns.length);
 
+            let statusMatch = $('div.info-main>ul>li:contains(狀態)>div.text>span').text().match(/全(\d)+冊【已完結】/);
+            let totalCount = null;
+            if (statusMatch !== null) {
+                totalCount = statusMatch[1];
+            }
             let info = {
                 bookId: urlMatch[1],
                 bookName: $('div.main>div.breadcrumbs>a:last').text(),
                 author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').text(),
                 publisher: publisher,
                 tag: $('.btn-tag').toArray().map(o => $(o).text()),
-                summarys: summaries
+                summarys: summaries,
+                totalCount: totalCount
             };
             GM_setValue("bookInfo", info);
             return info;
@@ -315,9 +321,7 @@
                     }
                 }
                 title = title.substring(index).trim();
-                if (/^\d+$/.test(title)) {
-                    number = title;
-                }
+                number = tools.myrenta.utils.getNumberFromTitle(title);
             }
 
             //ComicInfo.xml
@@ -338,7 +342,8 @@
                 Writer: context.bookInfo.author,
                 Publisher: context.bookInfo.publisher.join(','),
                 Tags: context.bookInfo.tag.join(','),
-                LanguageISO: 'zh'
+                LanguageISO: 'zh',
+                Count: context.bookInfo.totalCount,
             });
 
             let item = {
@@ -705,6 +710,18 @@
                     //     binary += String.fromCharCode(bytes[i]);
                     // }
                     // return window.Uint8Array(binary);
+                },
+                getNumberFromTitle: function (title) {
+                    let regexArray = [/^(\d+)$/, /\((\d+)\)/, /Vol.(\d+)/, /\(第(\d+)話\)/];
+                    for (let i = 0; i < regexArray.length; i++) {
+                        let regex = regexArray[i];
+                        let match = title.match(regex);
+                        if (match === null) {
+                            continue;
+                        }
+                        return match[1];
+                    }
+                    return null;
                 }
             },
             api: {
