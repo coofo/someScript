@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ehentai ComicInfo.xml 生成
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.3
+// @version      0.0.4
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -35,14 +35,26 @@
             smallTitle: $("#gj").text(),
             uploader: $("#gdn>a").text(),
             tag: tag,
-            language: $("#gdd tr:contains(Language) td.gdt2").text().replace(/^([a-zA-Z]+).*$/, '$1')
+            language: $("#gdd tr:contains(Language) td.gdt2").text().replace(/^([a-zA-Z]+).*$/, '$1'),
         };
         console.log(info);
 
         let tags = [];
+        let artist = [];
         for (let key in info.tag) {
-            if (info.tag.hasOwnProperty(key) && !['artist'].includes(key)) {
-                tags = tags.concat(info.tag[key]);
+            if (!info.tag.hasOwnProperty(key)){
+                continue;
+            }
+            switch (key){
+                case 'artist:':
+                case '艺术家：':
+                case 'group:':
+                case '社团：':
+                    artist = artist.concat(info.tag[key]);
+                    break;
+                default:
+                    tags = tags.concat(info.tag[key]);
+                    break
             }
         }
 
@@ -50,10 +62,11 @@
         let xmlInfo = {
             Series: info.smallTitle ? info.smallTitle : info.bigTitle,
             LocalizedSeries: info.bigTitle,
-            Writer: info.tag.artist,
+            Writer: artist,
             Publisher: ['e-hentai', info.uploader],
             Tags: tags,
-            LanguageISO: tools.getLanguageISO([info.language])
+            LanguageISO: tools.getLanguageISO([info.language]),
+            Web: window.location.href,
         };
 
         let xml = coofoUtils.comicInfoUtils.create(xmlInfo);
