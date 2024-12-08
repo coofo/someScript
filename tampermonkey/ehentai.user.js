@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ehentai ComicInfo.xml 生成
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.4
+// @version      0.0.5
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -41,6 +41,7 @@
 
         let tags = [];
         let artist = [];
+        let characters = [];
         for (let key in info.tag) {
             if (!info.tag.hasOwnProperty(key)){
                 continue;
@@ -51,6 +52,10 @@
                 case 'group:':
                 case '社团：':
                     artist = artist.concat(info.tag[key]);
+                    break;
+                case 'character:':
+                case '角色：':
+                    characters = characters.concat(info.tag[key]);
                     break;
                 default:
                     tags = tags.concat(info.tag[key]);
@@ -65,6 +70,7 @@
             Writer: artist,
             Publisher: ['e-hentai', info.uploader],
             Tags: tags,
+            Characters: characters,
             LanguageISO: tools.getLanguageISO([info.language]),
             Web: window.location.href,
         };
