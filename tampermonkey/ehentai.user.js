@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ehentai ComicInfo.xml 生成
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.2
+// @version      0.0.3
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -12,7 +12,8 @@
 // @include      /^https://exhentai.org/g/\d+/[0-9a-z]+/
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
-// @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1084326
+// @require      https://update.greasyfork.org/scripts/442002/1153835/coofoUtils.js
+// @require      https://update.greasyfork.org/scripts/453329/1340176/coofoUtils-comicInfo.js
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
 
