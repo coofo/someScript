@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.3.3
+// @version      0.3.4
 // @license      MIT License
 // @description  一些工具
 // @author       coofo
@@ -398,7 +398,7 @@
                 }
             },
             task: {
-                create: function () {
+                create: function ()  {
                     let task = {
                         runtime: {taskList: [], executing: [], nowExec: false},
                         api: {
@@ -465,6 +465,52 @@
                         }
                     };
                     return task;
+                }
+            },
+            taskCount: {
+                create: function () {
+                    let taskListInfo = {
+                        size: 0,
+                        finished: 0,
+                    };
+                    let callback = null;
+                    return {
+                        addTask: function (runnable) {
+                            taskListInfo.size++;
+                            let pending = true;
+                            return function (resolve, reject) {
+                                let taskResolve = function (o) {
+                                    if (!pending) {
+                                        throw "taskCount task can not exec again"
+                                    }
+                                    pending = false;
+                                    taskListInfo.finished++;
+                                    try {
+                                        if (typeof callback == 'function') callback(taskListInfo);
+                                    } catch (e) {
+                                        console.error(e);
+                                    }
+                                    resolve(o);
+                                }
+                                let taskReject = function (o) {
+                                    taskListInfo.finished++;
+                                    try {
+                                        if (typeof callback == 'function') callback(taskListInfo);
+                                    } catch (e) {
+                                        console.error(e);
+                                    }
+                                    reject(o);
+                                }
+                                runnable(taskResolve, taskReject);
+                            }
+                        },
+                        setStatusCallback: function (thisCallback) {
+                            callback = thisCallback;
+                        },
+                        getInfo: function () {
+                            return taskListInfo;
+                        }
+                    };
                 }
             },
             threadPoolTaskExecutor: {
