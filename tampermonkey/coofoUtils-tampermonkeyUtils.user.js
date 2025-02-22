@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         coofoUtils-tampermonkeyUtils
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.1
+// @version      0.0.2
 // @license      MIT License
 // @description  tampermonkeyUtils扩展包
 // @author       coofo
@@ -20,6 +20,7 @@
                     GM_xmlhttpRequest({
                         method: "GET",
                         url: url,
+                        nocache: true,
                         responseType: "arraybuffer",
                         onload: function (responseDetails) {
                             onSuccess(responseDetails);

@@ -365,6 +365,7 @@
             },
         },
         service: {
+            //可自动重试的Promise
             retryablePromise: {
                 create: function (exec, retryTimes) {
                     let taskInfo = {
@@ -474,10 +475,18 @@
                         finished: 0,
                     };
                     let callback = null;
+                    let callCallback = function () {
+                        try {
+                            if (typeof callback === 'function') callback(taskListInfo);
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    };
                     return {
                         addTask: function (runnable) {
                             taskListInfo.size++;
                             let pending = true;
+                            callCallback();
                             return function (resolve, reject) {
                                 let taskResolve = function (o) {
                                     if (!pending) {
@@ -485,22 +494,14 @@
                                     }
                                     pending = false;
                                     taskListInfo.finished++;
-                                    try {
-                                        if (typeof callback == 'function') callback(taskListInfo);
-                                    } catch (e) {
-                                        console.error(e);
-                                    }
+                                    callCallback();
                                     resolve(o);
-                                }
+                                };
                                 let taskReject = function (o) {
                                     taskListInfo.finished++;
-                                    try {
-                                        if (typeof callback == 'function') callback(taskListInfo);
-                                    } catch (e) {
-                                        console.error(e);
-                                    }
+                                    callCallback();
                                     reject(o);
-                                }
+                                };
                                 runnable(taskResolve, taskReject);
                             }
                         },
@@ -513,6 +514,7 @@
                     };
                 }
             },
+            //线程池
             threadPoolTaskExecutor: {
                 create: function (size) {
                     let executing = [];
