@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         爱发电图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.1
+// @version      0.0.2
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -10,7 +10,7 @@
 // @supportURL   https://github.com/coofo/someScript/issues
 // @match        https://tw.myrenta.com/item/*
 // @include      /^https://afdian.com/album/([0-9a-z]+)/([0-9a-z]+)$/
-// @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
+// @require      https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.15.10/sweetalert2.all.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://update.greasyfork.org/scripts/442002/1541573/coofoUtils.js

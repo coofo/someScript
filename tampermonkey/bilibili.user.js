@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bilibili用户带图动态下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.3
+// @version      0.0.4
 // @license      AGPL License
 // @description  bilibili用户带图动态下载
 // @author       coofo
@@ -9,7 +9,7 @@
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/bilibili.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
 // @include      /^https://space.bilibili.com/\d+/
-// @require      https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.15.10/sweetalert2.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.15.10/sweetalert2.all.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1153835
 // @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
