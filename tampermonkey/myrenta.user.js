@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.15
+// @version      0.1.17
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -108,42 +108,47 @@
         //介绍页面
 
         //添加按钮
-        $('#addMyList').next().after(`<a id="saveBookInfo" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">暂存信息</a>
-                                      <a id="autoDownload" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">auto（test）</a>`);
+        // $('#addMyList').next().after(`<a id="saveBookInfo" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">暂存信息</a>
+        //                               <a id="autoDownload" href="javascript:;" class="btn btn-collect" style="margin-bottom: 13px;">auto（test）</a>`);
 
         let saveBookInfo = async function () {
-            let publisher = $('div.info-main>ul>li:contains(發行)>div.text>a>h2').toArray().map(o => $(o).text());
+            let publisher = $('div.container>div.main astro-island>div>div>div>div>div div:contains(發行)>a').toArray().map(o => $(o).text());
             publisher.push('myrenta');
             let summaries = [];
 
-            let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
-            let i = 0;
-            do {
-                let div = null;
-                if (volBtns.length > 0) {
-                    div = volBtns[i];
-                    $(div).click();
-                    await new Promise(resolve => setTimeout(() => resolve(), 0));
-                }
-                $(".other-vols").toArray().map(o => summaries.push({
-                    title: $(o).find("h4").text().trim(),
-                    summary: $(o).find(".intro-text p").text().trim()
-                }));
+            // let volBtns = $("#message>astro-island>ul>li a:contains(開始閱讀)") .toArray();
+            // let i = 0;
+            // do {
+            //     let div = null;
+            //     if (volBtns.length > 0) {
+            //         div = volBtns[i];
+            //         $(div).click();
+            //         await new Promise(resolve => setTimeout(() => resolve(), 0));
+            //     }
+            //     $("#message>astro-island>ul>li div.group").toArray().map(o => summaries.push({
+            //         title: $(o).find("div.relative>a>span").text().trim(),
+            //         summary: $(o).find("div.relative>div.relative>div.min-h-0").text().trim()
+            //     }));
+            //
+            //     i++;
+            // } while (i < volBtns.length);
 
-                i++;
-            } while (i < volBtns.length);
+            $("#message>astro-island>ul>li div.group").toArray().map(o => summaries.push({
+                title: $(o).find("div.relative>a>span").text().trim(),
+                summary: $(o).find("div.relative>div.relative>div.min-h-0").text().trim()
+            }));
 
-            let statusMatch = $('div.info-main>ul>li:contains(狀態)>div.text>span').text().match(/全(\d)+冊【已完結】/);
+            let statusMatch = $($('div.container>div.main astro-island>div>div>div>div>div div:contains(狀態)>div>div')[1]).text() .match(/共(\d)+冊已完結/);
             let totalCount = null;
             if (statusMatch !== null) {
                 totalCount = statusMatch[1];
             }
             let info = {
                 bookId: urlMatch[1],
-                bookName: $('div.main>div.breadcrumbs>a:last').text(),
-                author: $('div.info-main>ul>li:contains(作者)>div.text>a>h2').text(),
+                bookName: $('div.container>div.main main>div>div>h1').text(),
+                author: $('div.container>div.main astro-island>div>div>div>div>div div:contains(作者)>div>a').text(),
                 publisher: publisher,
-                tag: $('.btn-tag').toArray().map(o => $(o).text()),
+                tag: [...new Set($('div>a[data-gtm="tag"]').toArray().map(o => $(o).text()))],
                 summarys: summaries,
                 totalCount: totalCount
             };
@@ -152,7 +157,7 @@
         };
 
         //暂存触发
-        $('#saveBookInfo').click(async function () {
+        GM_registerMenuCommand("暂存信息",async function () {
             // console.log(GM_getValue("bookInfo",{}));
             let info = await saveBookInfo();
             let htmlEscape = coofoUtils.commonUtils.xss.htmlEscape;
@@ -178,7 +183,7 @@
         });
 
         //全自动触发
-        $('#autoDownload').click(async function () {
+        GM_registerMenuCommand("auto（test）",async function () {
 
             let postMsgInfo = {listener: null};
 
@@ -204,25 +209,30 @@
             let info = await saveBookInfo();
             let cbzInfoArray = [];
 
-            let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
+            // let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
+            let volBtns = [0];
             let i = 0;
             do {
-                let div = null;
-                if (volBtns.length > 0) {
-                    div = volBtns[i];
-                    $(div).click();
-                    console.log("打开分页" + (i + 1));
-                    await new Promise(resolve => setTimeout(() => resolve(), 0));
-                }
+                // let div = null;
+                // if (volBtns.length > 0) {
+                //     div = volBtns[i];
+                //     $(div).click();
+                //     console.log("打开分页" + (i + 1));
+                //     await new Promise(resolve => setTimeout(() => resolve(), 0));
+                // }
 
-                let otherVols = $("div.other-vols").toArray();
+                let otherVols = $("#message>astro-island>ul>li a:contains(開始閱讀)").toArray();
                 for (let j = 0; j < otherVols.length; j++) {
                     let otherVolsDiv = $(otherVols[j]);
 
-                    let starReading = otherVolsDiv.find("a.start-reading");
+                    let starReading = otherVolsDiv;
                     if (starReading.length > 0) {
                         console.log("打开第" + (j + 1));
-                        starReading.click();
+                        // starReading.click();
+                        let url = starReading.attr('href');
+                        if (url) {
+                            window.open(url, '_blank');
+                        }
 
                         let cbzInfo = await new Promise((resolve, reject) => {
                             postMsgInfo.listener = e => {
