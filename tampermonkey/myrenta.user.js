@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.18
+// @version      0.1.19
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -104,6 +104,23 @@
 
     });
 
+    GM_registerMenuCommand("下载图片格式设置", function () {
+        // caps: "avif,webp,jpeg",
+        let downloadImgType = GM_getValue("downloadImgType", "jpeg");
+        let val = prompt("输入下载的图片格式，支持 avif,webp,jpeg；多选逗号分割", downloadImgType);
+        if (val !== null) {
+            let types = val.split(',').filter(s => s.length > 0);
+            let validTypes = ['avif', 'webp', 'jpeg'];
+            let allValid = types.every(t => validTypes.includes(t));
+            if (allValid && types.length > 0) {
+                downloadImgType = val;
+                GM_setValue("downloadImgType", downloadImgType);
+                alert("保存成功");
+            } else {
+                alert("格式无效，仅支持 avif、webp、jpeg，多个用逗号分割");
+            }
+        }
+    });
 
     let urlMatch = null;
     let urlMatchInfo = {"itemId": null};
@@ -551,14 +568,16 @@
                 let bookInfo = await new Promise(resolve => tools.myrenta.api.getBookInfo2(urlMatchInfo.itemId, urlMatchInfo.authorization, bookInfo => resolve(bookInfo)));
                 // item.itemInfo.prdId = bookInfo.prd_id;
                 for (let i = 0; i < bookInfo.pages.length; i++) {
+                    let src = bookInfo.pages[i].src;
+                    let ext = src.split('?')[0].split('.').pop();
                     let image = {
                         parent: item,
                         imageInfo: {
-                            ext: 'jpg',
-                            src: bookInfo.pages[i].src,
+                            ext: ext,
+                            src: src,
                             page: i + 1,
                             index: i + 1,
-                            suffix: "." + 'jpg'
+                            suffix: "." + ext
                         },
                         imageFile: null
                     };
@@ -869,7 +888,7 @@
                 },
                 getBookInfo2: function (itemId, authorization, onSuccess, onError, onComplete) {
                     let data = {
-                        caps: "jpeg",
+                        caps: GM_getValue("downloadImgType", "jpeg"),
                         // caps: "avif,webp,jpeg",
                     };
                     $.ajax({
