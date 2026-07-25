@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.17
+// @version      0.1.18
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -9,8 +9,10 @@
 // @downloadURL  https://github.com/coofo/someScript/raw/main/tampermonkey/myrenta.user.js
 // @supportURL   https://github.com/coofo/someScript/issues
 // @match        https://tw.myrenta.com/item/*
+// @match        https://re-reader.myrenta.com/viewer/*
 // @include      /^https://reader.myrenta.com/viewer/sc/viewer_aws/[0-9a-z]+/[\d-]+/type_(6|10)/index.html(\?.*)?$/
 // @include      /^https://reader.myrenta.com/viewer/sc/viewerjs/[0-9a-z]+/[\d-]+/RTL001/index.html(\?.*)?$/
+// @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.15.10/sweetalert2.all.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
@@ -104,6 +106,7 @@
 
 
     let urlMatch = null;
+    let urlMatchInfo = {"itemId": null};
     if ((urlMatch = url.match(tools.myrenta.regex.bookUrl)) != null) {
         //介绍页面
 
@@ -236,13 +239,13 @@
 
                         let cbzInfo = await new Promise((resolve, reject) => {
                             postMsgInfo.listener = e => {
-                                if (e.origin === 'https://reader.myrenta.com') {
+                                if (e.origin === 'https://reader.myrenta.com' || e.origin === 'https://re-reader.myrenta.com') {
                                     if (e.data === "auto download?") {
                                         console.log("send download");
                                         e.source.postMessage({
                                             msg: "auto download",
                                             info: info
-                                        }, 'https://reader.myrenta.com');
+                                        }, e.origin);
                                     } else if (e.data.msg === "auto download success") {
                                         resolve(e.data.data);
                                     } else if (e.data === "auto download error") {
@@ -292,7 +295,9 @@
         });
 
 
-    } else if (url.match(tools.myrenta.regex.bookDetailUrl) != null || url.match(tools.myrenta.regex.bookDetailUrl2) != null) {
+    } else if (url.match(tools.myrenta.regex.bookDetailUrl) != null
+        || url.match(tools.myrenta.regex.bookDetailUrl2) != null
+        || url.match(tools.myrenta.regex.bookDetailUrl3) != null) {
         //阅读页面
 
         /**
@@ -361,7 +366,7 @@
                 itemInfo: {
                     originalTitle: originalTitle,
                     title: title,
-                    itemId: urlMatch[3]
+                    itemId: urlMatchInfo.itemId
                 },
                 comicInfo: xml,
                 images: [],
@@ -372,18 +377,19 @@
         };
 
         let downloadDif;
-        let btn;
+        // let btn;
         if ((urlMatch = url.match(tools.myrenta.regex.bookDetailUrl)) != null) {
-            //添加按钮
-            if (urlMatch[4] === "6") {
-                $("div.btnBox").after('<div class="btnBox"><a href="javascript:;" id="user_js_download" style="width: auto;padding: 0 10px 0 10px;background-size: 100% 100%;">⬇下载</a></div>');
-            } else {
-                $("a.chapter-prev").after(`<a id="user_js_download" class="chapter-btn" href="javascript:;">⬇下载</a>`);
-            }
+            urlMatchInfo.itemId = urlMatch[3];
+            // //添加按钮
+            // if (urlMatch[4] === "6") {
+            //     $("div.btnBox").after('<div class="btnBox"><a href="javascript:;" id="user_js_download" style="width: auto;padding: 0 10px 0 10px;background-size: 100% 100%;">⬇下载</a></div>');
+            // } else {
+            //     $("a.chapter-prev").after(`<a id="user_js_download" class="chapter-btn" href="javascript:;">⬇下载</a>`);
+            // }
 
-            btn = $("#user_js_download");
+            // btn = $("#user_js_download");
             tools.runtime.downloadTask.showMsg = function (msg) {
-                btn.html(msg);
+                // btn.html(msg);
             };
 
             downloadDif = async (bookInfo) => await downloadBase(bookInfo).then(async context => {
@@ -448,12 +454,13 @@
                 return context;
             });
         } else if ((urlMatch = url.match(tools.myrenta.regex.bookDetailUrl2)) != null) {
+            urlMatchInfo.itemId = urlMatch[3];
             //添加按钮
-            $("div.btnBox").after('<div class="btnBox"><a href="javascript:;" id="user_js_download" style="width: auto;padding: 0 10px 0 10px;background-size: 100% 100%;">⬇下载</a></div>');
+            // $("div.btnBox").after('<div class="btnBox"><a href="javascript:;" id="user_js_download" style="width: auto;padding: 0 10px 0 10px;background-size: 100% 100%;">⬇下载</a></div>');
 
-            btn = $("#user_js_download");
+            // btn = $("#user_js_download");
             tools.runtime.downloadTask.showMsg = function (msg) {
-                btn.html(msg);
+                // btn.html(msg);
             };
 
 
@@ -484,6 +491,88 @@
                     item.images.forEach(image => {
                         tools.runtime.downloadTask.downloadTaskNum++;
                         downloadTask.api.addTask(taskItem => tools.myrenta.downloadHelp.downloadTask2(taskItem, image), setting.downloadRetryTimes);
+                    })
+                });
+                let downloadTaskReturn = await downloadTask.api.exec(setting.threadNum);
+
+                if (downloadTaskReturn.retryTimesOutNum > 0) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '下载出错',
+                        text: '下载 ' + downloadTaskReturn.completeNum + ' - ' + downloadTaskReturn.retryTimesOutNum
+                    });
+                    throw "下载出错";
+                }
+
+
+                return context;
+            });
+        } else if ((urlMatch = url.match(tools.myrenta.regex.bookDetailUrl3)) != null) {
+            urlMatchInfo.itemId = urlMatch[1];
+            tools.runtime.downloadTask.showMsg = function (msg) {
+            };
+
+            {
+                let stolenTokenEventListener = function (e){
+                    if (e.data.msg === 'STOLEN_TOKEN') {
+                        urlMatchInfo.authorization = e.data.token;
+
+                        // console.log('获取到 Authorization:', token);
+                        // 保存下来
+                        // GM_setValue('authToken', token);
+                        window.removeEventListener("message", stolenTokenEventListener);
+                    }
+                }
+                window.addEventListener('message', stolenTokenEventListener);
+            }
+            {
+                const script = document.createElement('script');
+                script.textContent = `(${function (pattern) {
+                    const origFetch = window.fetch;
+                    window.fetch = function (...args) {
+                        const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+                        if (url.match(new RegExp(pattern)) && args[1] && args[1].headers) {
+                            const headers = args[1].headers;
+                            const auth = headers instanceof Headers
+                                ? headers.get('Authorization')
+                                : headers['Authorization'] || headers['authorization'];
+                            if (auth) {
+                                window.postMessage({msg: 'STOLEN_TOKEN', token: auth}, '*');
+                            }
+                        }
+                        return origFetch.apply(this, arguments);
+                    };
+                }})(${JSON.stringify('.*/epub/[0-9]+.*')})`;
+                document.documentElement.appendChild(script);
+            }
+
+            downloadDif = async (bookInfo) => await downloadBase(bookInfo).then(async context => {
+                let item = context.items[0];
+                let bookInfo = await new Promise(resolve => tools.myrenta.api.getBookInfo2(urlMatchInfo.itemId, urlMatchInfo.authorization, bookInfo => resolve(bookInfo)));
+                // item.itemInfo.prdId = bookInfo.prd_id;
+                for (let i = 0; i < bookInfo.pages.length; i++) {
+                    let image = {
+                        parent: item,
+                        imageInfo: {
+                            ext: 'jpg',
+                            src: bookInfo.pages[i].src,
+                            page: i + 1,
+                            index: i + 1,
+                            suffix: "." + 'jpg'
+                        },
+                        imageFile: null
+                    };
+                    item.images.push(image);
+                }
+
+                //执行下载操作
+                let downloadTask = coofoUtils.service.task.create();
+                tools.runtime.downloadTask.downloadTask = downloadTask;
+
+                context.items.forEach(item => {
+                    item.images.forEach(image => {
+                        tools.runtime.downloadTask.downloadTaskNum++;
+                        downloadTask.api.addTask(taskItem => tools.myrenta.downloadHelp.downloadTask3(taskItem, image), setting.downloadRetryTimes);
                     })
                 });
                 let downloadTaskReturn = await downloadTask.api.exec(setting.threadNum);
@@ -551,7 +640,8 @@
         //++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-        btn.click(function () {
+        GM_registerMenuCommand("下载",async function () {
+        // btn.click(function () {
 
             let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
             setting.imageNameTemplate = templateSetting.imageNameTemplate;
@@ -573,10 +663,18 @@
             }
             if (infoNum > 0) {
                 let icon;
-                if ($("p.title span").text().startsWith(info.bookName)) {
-                    icon = 'success';
+                if (url.match(tools.myrenta.regex.bookDetailUrl3) == null) {
+                    if ($("p.title span").text().startsWith(info.bookName)) {
+                        icon = 'success';
+                    } else {
+                        icon = 'warning';
+                    }
                 } else {
-                    icon = 'warning';
+                    if ($('div div span span.truncate').text().startsWith(info.bookName)) {
+                        icon = 'success';
+                    } else {
+                        icon = 'warning';
+                    }
                 }
                 Swal.fire({
                     icon: icon,
@@ -600,7 +698,7 @@
             }
         });
 
-        if (typeof window.opener === 'object') {
+        if (typeof window.opener === 'object' && window.opener !== null) {
             (async function () {
                 console.log("init message EventListener");
                 window.addEventListener("message", e => {
@@ -626,17 +724,30 @@
 
                         let info = e.data.info;
 
-                        autoDownload(info).then(
-                            cbzInfo => {
-                                Swal.fire("自动下载成功", "该页面将自动关闭", "success");
-                                window.opener.postMessage({
-                                    msg: "auto download success",
-                                    data: cbzInfo
-                                }, 'https://tw.myrenta.com');
-                            }, () => {
-                                Swal.fire("自动下载失败", null, "error");
-                                window.opener.postMessage("auto download error", 'https://tw.myrenta.com');
-                            }).then(() => window.close());
+                        let download = function () {
+                            autoDownload(info).then(
+                                cbzInfo => {
+                                    Swal.fire("自动下载成功", "该页面将自动关闭", "success");
+                                    window.opener.postMessage({
+                                        msg: "auto download success",
+                                        data: cbzInfo
+                                    }, 'https://tw.myrenta.com');
+                                }, () => {
+                                    Swal.fire("自动下载失败", null, "error");
+                                    window.opener.postMessage("auto download error", 'https://tw.myrenta.com');
+                                }).then(() => window.close());
+                        }
+
+                        if (url.match(tools.myrenta.regex.bookDetailUrl3) == null) {
+                            download();
+                        } else {
+                            (async function waitForAuth() {
+                                while (!urlMatchInfo.authorization) {
+                                    await new Promise(resolve => setTimeout(resolve, 1000));
+                                }
+                                download();
+                            })();
+                        }
                     }
                 });
                 await new Promise(resolve => setTimeout(() => resolve(), 0));
@@ -697,6 +808,7 @@
             regex: {
                 bookDetailUrl: new RegExp("^https://reader.myrenta.com/viewer/sc/viewer_aws/([0-9a-z]+)/([0-9]+-([0-9]+)-[0-9]+)/type_(6|10)/index.html(\\?.*)?$"),
                 bookDetailUrl2: new RegExp("^https://reader.myrenta.com/viewer/sc/viewerjs/([0-9a-z]+)/([0-9]+-([0-9]+)-[0-9]+)/RTL001/index.html(\\?.*)?$"),
+                bookDetailUrl3: new RegExp("^https://re-reader.myrenta.com/viewer/([0-9]+)$"),
                 bookUrl: new RegExp("^https://tw\\.myrenta\\.com/item/(\\d+)")
             },
             utils: {
@@ -747,6 +859,25 @@
                         data: data,
                         dataType: "json",
                         contentType: "application/x-www-form-urlencoded; charset=UTF-8",
+                        success: function (request) {
+                            // console.log(request);
+                            onSuccess(request);
+                        },
+                        error: onError,
+                        complete: onComplete
+                    });
+                },
+                getBookInfo2: function (itemId, authorization, onSuccess, onError, onComplete) {
+                    let data = {
+                        caps: "jpeg",
+                        // caps: "avif,webp,jpeg",
+                    };
+                    $.ajax({
+                        url: "/epub/" + itemId,
+                        type: 'get',
+                        headers: {"Authorization": authorization},
+                        data: data,
+                        dataType: "json",
                         success: function (request) {
                             // console.log(request);
                             onSuccess(request);
@@ -846,6 +977,19 @@
                         tools.runtime.downloadTask.refreshDownLoadStatus();
                     };
                     request.send(formData);
+
+                },
+                downloadTask3: function (taskItem, image) {
+                    let request = new XMLHttpRequest();
+                    request.open("GET", image.imageInfo.src, true);
+                    request.responseType = 'arraybuffer';
+                    request.onload = function () {
+                        image.imageFile = new Uint8Array(request.response);
+                        taskItem.success();
+                        tools.runtime.downloadTask.downloadedTaskNum++;
+                        tools.runtime.downloadTask.refreshDownLoadStatus();
+                    };
+                    request.send();
 
                 },
                 generateCbz: function (item, onFinished) {
