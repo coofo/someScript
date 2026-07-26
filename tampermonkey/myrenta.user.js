@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.19
+// @version      0.1.20
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -158,7 +158,7 @@
                 summary: $(o).find("div.relative>div.relative>div.min-h-0").text().trim()
             }));
 
-            let statusMatch = $($('div.container>div.main astro-island>div>div>div>div>div div:contains(狀態)>div>div')[1]).text() .match(/共(\d)+冊已完結/);
+            let statusMatch = $($('div.container>div.main astro-island>div>div>div>div>div div:contains(狀態)>div>div')[1]).text().match(/共(\d)+冊已完結/);
             let totalCount = null;
             if (statusMatch !== null) {
                 totalCount = statusMatch[1];
@@ -177,7 +177,7 @@
         };
 
         //暂存触发
-        GM_registerMenuCommand("暂存信息",async function () {
+        GM_registerMenuCommand("暂存信息", async function () {
             // console.log(GM_getValue("bookInfo",{}));
             let info = await saveBookInfo();
             let htmlEscape = coofoUtils.commonUtils.xss.htmlEscape;
@@ -203,7 +203,7 @@
         });
 
         //全自动触发
-        GM_registerMenuCommand("auto（test）",async function () {
+        GM_registerMenuCommand("auto（test）", async function () {
 
             let postMsgInfo = {listener: null};
 
@@ -339,7 +339,12 @@
             context.zip = new JSZip();
             context.bookInfo = bookInfo;
 
-            let originalTitle = $("p.title span").text();
+            let originalTitle;
+            if (url.match(tools.myrenta.regex.bookDetailUrl3) == null) {
+                originalTitle = $("p.title span").text();
+            } else {
+                originalTitle = $('div div span span.truncate').text();
+            }
             bookInfo.originalTitle = originalTitle;
             let title = originalTitle;
             let number = null;
@@ -530,7 +535,7 @@
             };
 
             {
-                let stolenTokenEventListener = function (e){
+                let stolenTokenEventListener = function (e) {
                     if (e.data.msg === 'STOLEN_TOKEN') {
                         urlMatchInfo.authorization = e.data.token;
 
@@ -659,8 +664,8 @@
         //++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-        GM_registerMenuCommand("下载",async function () {
-        // btn.click(function () {
+        GM_registerMenuCommand("下载", async function () {
+            // btn.click(function () {
 
             let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
             setting.imageNameTemplate = templateSetting.imageNameTemplate;
