@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.20
+// @version      0.1.21
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -158,7 +158,7 @@
                 summary: $(o).find("div.relative>div.relative>div.min-h-0").text().trim()
             }));
 
-            let statusMatch = $($('div.container>div.main astro-island>div>div>div>div>div div:contains(狀態)>div>div')[1]).text().match(/共(\d)+冊已完結/);
+            let statusMatch = $($('div.container>div.main astro-island>div>div>div>div>div div:contains(狀態)>div>div')[1]).text().match(/[共全](\d)+冊已完結/);
             let totalCount = null;
             if (statusMatch !== null) {
                 totalCount = statusMatch[1];
@@ -343,7 +343,7 @@
             if (url.match(tools.myrenta.regex.bookDetailUrl3) == null) {
                 originalTitle = $("p.title span").text();
             } else {
-                originalTitle = $('div div span span.truncate').text();
+                originalTitle = $($('div div span')[0]).text();
             }
             bookInfo.originalTitle = originalTitle;
             let title = originalTitle;
@@ -767,6 +767,9 @@
                         } else {
                             (async function waitForAuth() {
                                 while (!urlMatchInfo.authorization) {
+                                    await new Promise(resolve => setTimeout(resolve, 1000));
+                                }
+                                while (!$($('div div span')[0]).text()) {
                                     await new Promise(resolve => setTimeout(resolve, 1000));
                                 }
                                 download();
