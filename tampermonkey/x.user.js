@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         x图片下载自动触发
 // @namespace    https://github.com/coofo/someScript
-// @version      0.0.1
+// @version      0.0.2
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -27,7 +27,7 @@
 
     let status = "wait";
 
-    let urlRegex = new RegExp("^https://x\\.com/([^/]+)/media$")
+    let urlRegex = new RegExp("^https://x\\.com/([^/]+)/media(\\?.*)?$")
 
     //设置按钮
     GM_registerMenuCommand("停止", function () {
