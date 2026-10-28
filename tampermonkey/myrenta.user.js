@@ -241,6 +241,7 @@
             };
             window.coofoUtils.downloadUI.store.upsert(downloadUiInfo);
 
+            let itemArray = [];
             // let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
             let volBtns = [0];
             let i = 0;
@@ -263,48 +264,53 @@
                         // starReading.click();
                         let url = starReading.attr('href');
                         if (url) {
-                            window.open(url, '_blank');
+                            itemArray.push({url: url});
                         }
-
-                        let itemDownloadInfo = {
-                            id: Date.now() + '', start: 0, end: 0, received: 0, status: 'active'
-                        };
-                        downloadUiInfo.chunks.push(itemDownloadInfo);
-                        window.coofoUtils.downloadUI.store.upsert(downloadUiInfo);
-
-                        let cbzInfo = await new Promise((resolve, reject) => {
-                            postMsgInfo.listener = e => {
-                                if (e.origin === 'https://reader.myrenta.com' || e.origin === 'https://re-reader.myrenta.com') {
-                                    if (e.data === "auto download?") {
-                                        console.log("send download");
-                                        e.source.postMessage({
-                                            msg: "auto download",
-                                            info: info
-                                        }, e.origin);
-                                    } else if (e.data.msg === "auto download success") {
-                                        itemDownloadInfo.received = 1;
-                                        itemDownloadInfo.status = 'done';
-                                        window.coofoUtils.downloadUI.store.chunk(downloadUiInfo.id,itemDownloadInfo.id,itemDownloadInfo)
-                                        resolve(e.data.data);
-                                    } else if (e.data === "auto download error") {
-                                        Swal.fire({
-                                            title: "auto error",
-                                            icon: "false"
-                                        });
-
-                                        window.removeEventListener("message", eventFunction);
-                                        itemDownloadInfo.status = 'error';
-                                        window.coofoUtils.downloadUI.store.chunk(downloadUiInfo.id,itemDownloadInfo.id,itemDownloadInfo)
-                                        reject();
-                                    }
-                                }
-                            }
-                        });
-                        cbzInfo.forEach(info => cbzInfoArray.push(info));
                     }
                 }
                 i++;
             } while (i < volBtns.length);
+
+            for (let j = 0; j < itemArray.length; j++) {
+                let itemDownloadInfo = {
+                    id: j + '', start: 0, end: 0, received: 0, status: 'pending'
+                };
+                itemArray[j].itemDownloadInfo = itemDownloadInfo;
+                downloadUiInfo.chunks.push(itemDownloadInfo);
+            }
+            window.coofoUtils.downloadUI.store.upsert(downloadUiInfo);
+
+            for (let j = 0; j < itemArray.length; j++) {
+                window.open(itemArray[j].url, '_blank');
+                const itemDownloadInfo = itemArray[j].itemDownloadInfo;
+
+                let cbzInfo = await new Promise((resolve, reject) => {
+                    postMsgInfo.listener = e => {
+                        if (e.origin === 'https://reader.myrenta.com' || e.origin === 'https://re-reader.myrenta.com') {
+                            if (e.data === "auto download?") {
+                                console.log("send download");
+                                e.source.postMessage({
+                                    msg: "auto download",
+                                    info: info
+                                }, e.origin);
+                            } else if (e.data.msg === "auto download success") {
+                                window.coofoUtils.downloadUI.store.chunk(downloadUiInfo.id,itemDownloadInfo.id,{received:1,status:'done'})
+                                resolve(e.data.data);
+                            } else if (e.data === "auto download error") {
+                                Swal.fire({
+                                    title: "auto error",
+                                    icon: "false"
+                                });
+
+                                window.removeEventListener("message", eventFunction);
+                                window.coofoUtils.downloadUI.store.chunk(downloadUiInfo.id,itemDownloadInfo.id,{status:'error'})
+                                reject();
+                            }
+                        }
+                    }
+                });
+                cbzInfo.forEach(info => cbzInfoArray.push(info));
+            }
 
             if (cbzInfoArray.length > 0) {
                 window.coofoUtils.downloadUI.store.patch(downloadUiInfo.id, {state: "packaging"});
