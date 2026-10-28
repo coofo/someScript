@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.21
+// @version      0.1.22
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -18,6 +18,7 @@
 // @require      https://greasyfork.org/scripts/442002-coofoutils/code/coofoUtils.js?version=1107527
 // @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
 // @require      https://update.greasyfork.org/scripts/453329/1340176/coofoUtils-comicInfo.js
+// @require      https://update.greasyfork.org/scripts/602538/1977946/coofoUtils-download-ui.js
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -229,6 +230,17 @@
             let info = await saveBookInfo();
             let cbzInfoArray = [];
 
+            const downloadUiInfo = {
+                id: Date.now() + '',
+                name: info.bookName,
+                state: 'queued',
+                etaMs: null,
+                output: info.bookName,
+                controls: {pause: false, resume: false, cancel: false, retry: false, remove: true},
+                chunks: []
+            };
+            window.coofoUtils.downloadUI.store.upsert(downloadUiInfo);
+
             // let volBtns = $("div.vol-btns:first").find("div.vol-btn").toArray();
             let volBtns = [0];
             let i = 0;
@@ -254,6 +266,12 @@
                             window.open(url, '_blank');
                         }
 
+                        let itemDownloadInfo = {
+                            id: Date.now() + '', start: 0, end: 0, received: 0, status: 'active'
+                        };
+                        downloadUiInfo.chunks.push(itemDownloadInfo);
+                        window.coofoUtils.downloadUI.store.upsert(downloadUiInfo);
+
                         let cbzInfo = await new Promise((resolve, reject) => {
                             postMsgInfo.listener = e => {
                                 if (e.origin === 'https://reader.myrenta.com' || e.origin === 'https://re-reader.myrenta.com') {
@@ -264,6 +282,9 @@
                                             info: info
                                         }, e.origin);
                                     } else if (e.data.msg === "auto download success") {
+                                        itemDownloadInfo.received = 1;
+                                        itemDownloadInfo.status = 'done';
+                                        window.coofoUtils.downloadUI.store.chunk(downloadUiInfo.id,itemDownloadInfo.id,itemDownloadInfo)
                                         resolve(e.data.data);
                                     } else if (e.data === "auto download error") {
                                         Swal.fire({
@@ -272,6 +293,8 @@
                                         });
 
                                         window.removeEventListener("message", eventFunction);
+                                        itemDownloadInfo.status = 'error';
+                                        window.coofoUtils.downloadUI.store.chunk(downloadUiInfo.id,itemDownloadInfo.id,itemDownloadInfo)
                                         reject();
                                     }
                                 }
@@ -284,6 +307,7 @@
             } while (i < volBtns.length);
 
             if (cbzInfoArray.length > 0) {
+                window.coofoUtils.downloadUI.store.patch(downloadUiInfo.id, {state: "packaging"});
                 //创建zip
                 let zip = new JSZip();
                 cbzInfoArray.forEach(cbzInfo => zip.file(cbzInfo.name, cbzInfo.cbzFile));
@@ -295,12 +319,13 @@
 
                 coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
 
+                window.coofoUtils.downloadUI.store.patch(downloadUiInfo.id, {state: "done", output: zipFileName});
                 Swal.fire({
                     title: "下载完成",
                     icon: "success"
                 });
             } else {
-
+                window.coofoUtils.downloadUI.store.patch(downloadUiInfo.id, {state: "error", message: "下载内容为空"});
                 Swal.fire({
                     title: "下载内容为空",
                     icon: "warning"
@@ -331,7 +356,10 @@
 
         //setting end
         let downloadBase = async function (bookInfo) {
-            if (tools.runtime.nowDownloading) return;
+            if (tools.runtime.nowDownloading) {
+                alert("请勿重复下载");
+                return;
+            }
             tools.runtime.nowDownloading = true;
 
             let context = tools.runtime.downloadTask;
@@ -394,6 +422,17 @@
                 images: [],
                 cbz: new JSZip()
             };
+            context.downloadUiInfo = {
+                id: Date.now() + '',
+                name: originalTitle,
+                state: 'queued',
+                etaMs: null,
+                output: originalTitle,
+                controls: {pause: false, resume: false, cancel: false, retry: false, remove: true},
+                chunks: []
+            };
+            window.coofoUtils.downloadUI.store.upsert(context.downloadUiInfo);
+
             context.items.push(item);
             return context;
         };
@@ -419,8 +458,14 @@
                 let bookInfo = await new Promise(resolve => tools.myrenta.api.getBookInfo(urlMatch[1], urlMatch[2], bookInfo => resolve(bookInfo)));
                 item.itemInfo.prdId = bookInfo.prd_id;
                 for (let i = 0; i < bookInfo.dimension.length; i++) {
+                    let imgDownloadInfo = {
+                        id: i, start: 0, end: 0, received: 0, status: 'pending'
+                    };
+                    context.downloadUiInfo.chunks.push(imgDownloadInfo);
+
                     let image = {
                         parent: item,
+                        imgDownloadInfo: imgDownloadInfo,
                         imageInfo: {
                             ext: bookInfo.ext,
                             key: bookInfo.key,
@@ -432,6 +477,9 @@
                     };
                     item.images.push(image);
                 }
+
+                context.downloadUiInfo.state = 'downloading';
+                window.coofoUtils.downloadUI.store.upsert(context.downloadUiInfo);
 
                 //获取下载地址
                 let generateTask = coofoUtils.service.task.create();
@@ -491,8 +539,14 @@
                 let bookInfo = await new Promise(resolve => tools.myrenta.api.getBookInfo(urlMatch[1], urlMatch[2], bookInfo => resolve(bookInfo)));
                 item.itemInfo.prdId = bookInfo.prd_id;
                 for (let i = 0; i < bookInfo.dimension.length; i++) {
+                    let imgDownloadInfo = {
+                        id: i, start: 0, end: 0, received: 0, status: 'pending'
+                    };
+                    context.downloadUiInfo.chunks.push(imgDownloadInfo);
+
                     let image = {
                         parent: item,
+                        imgDownloadInfo: imgDownloadInfo,
                         imageInfo: {
                             ext: bookInfo.ext,
                             key: bookInfo.key,
@@ -504,6 +558,9 @@
                     };
                     item.images.push(image);
                 }
+
+                context.downloadUiInfo.state = 'downloading';
+                window.coofoUtils.downloadUI.store.upsert(context.downloadUiInfo);
 
                 //执行下载操作
                 let downloadTask = coofoUtils.service.task.create();
@@ -573,10 +630,16 @@
                 let bookInfo = await new Promise(resolve => tools.myrenta.api.getBookInfo2(urlMatchInfo.itemId, urlMatchInfo.authorization, bookInfo => resolve(bookInfo)));
                 // item.itemInfo.prdId = bookInfo.prd_id;
                 for (let i = 0; i < bookInfo.pages.length; i++) {
+                    let imgDownloadInfo = {
+                        id: i, start: 0, end: 0, received: 0, status: 'pending'
+                    };
+                    context.downloadUiInfo.chunks.push(imgDownloadInfo);
+
                     let src = bookInfo.pages[i].src;
                     let ext = src.split('?')[0].split('.').pop();
                     let image = {
                         parent: item,
+                        imgDownloadInfo: imgDownloadInfo,
                         imageInfo: {
                             ext: ext,
                             src: src,
@@ -588,6 +651,9 @@
                     };
                     item.images.push(image);
                 }
+
+                context.downloadUiInfo.state = 'downloading';
+                window.coofoUtils.downloadUI.store.upsert(context.downloadUiInfo);
 
                 //执行下载操作
                 let downloadTask = coofoUtils.service.task.create();
@@ -618,6 +684,7 @@
         }
 
         let downloadCbz = bookInfo => downloadDif(bookInfo).then(async context => {
+            window.coofoUtils.downloadUI.store.patch(bookInfo.downloadId, {state: "packaging"});
             //创建cbz
             let cbzCompleteNum = 0;
 
@@ -641,11 +708,13 @@
             //触发下载
             let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(tools.setting.zipNameTemplate, context.bookInfo) + ".zip";
             coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
+            window.coofoUtils.downloadUI.store.patch(context.downloadUiInfo.id, {state: "done", output: zipFileName});
             tools.runtime.downloadTask.showFinished(tools.runtime.downloadTask.downloadTaskNum, 0);
         });
 
         //自动下载的
         let autoDownload = (bookInfo) => downloadCbz(bookInfo).then(async context => {
+            window.coofoUtils.downloadUI.store.patch(context.downloadUiInfo.id, {state: "done"});
             tools.runtime.downloadTask.showFinished(tools.runtime.downloadTask.downloadTaskNum, 0);
             if (context.items.length <= 0) {
                 return [];
@@ -751,12 +820,14 @@
                         let download = function () {
                             autoDownload(info).then(
                                 cbzInfo => {
+                                    window.coofoUtils.downloadUI.store.patch(info.downloadId, {state: "done"});
                                     Swal.fire("自动下载成功", "该页面将自动关闭", "success");
                                     window.opener.postMessage({
                                         msg: "auto download success",
                                         data: cbzInfo
                                     }, 'https://tw.myrenta.com');
                                 }, () => {
+                                    window.coofoUtils.downloadUI.store.patch(info.downloadId, {state: "error"});
                                     Swal.fire("自动下载失败", null, "error");
                                     window.opener.postMessage("auto download error", 'https://tw.myrenta.com');
                                 }).then(() => window.close());
@@ -950,6 +1021,8 @@
                     });
                 },
                 downloadTask: function (taskItem, image) {
+                    window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'active'});
+
                     //get
                     let request = new XMLHttpRequest();
                     request.open("GET", image.imgUrl);
@@ -962,6 +1035,7 @@
                                 let buffer = myReader.result;
                                 if (buffer == null) {
                                     console.log('ERROR!!! 讀取 arraybuffer 錯誤!!');
+                                    window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'error'});
                                     taskItem.failed();
                                 } else {
                                     let arrayBufferView = new Uint8Array(buffer);
@@ -971,23 +1045,27 @@
                                     image.imageFile = arrayBufferView;
 
                                     taskItem.success();
+                                    window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'done', received: 1});
                                     tools.runtime.downloadTask.downloadedTaskNum++;
                                     tools.runtime.downloadTask.refreshDownLoadStatus();
                                 }
                             });
                         } else {
                             console.log(this.status);
+                            window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'error'});
                             taskItem.failed();
                         }
                     };
                     request.onerror = function (e) {
                         console.log(e);
+                        window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'error'});
                         taskItem.failed();
                     };
                     request.send();
 
                 },
                 downloadTask2: function (taskItem, image) {
+                    window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'active'});
                     //post
                     let request = new XMLHttpRequest();
                     request.open("POST", ".", true);
@@ -1000,6 +1078,7 @@
                     request.onload = function () {
                         image.imageFile = tools.myrenta.utils.imgDecode(request.response, image.imageInfo.key);
                         taskItem.success();
+                        window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'done', received: 1});
                         tools.runtime.downloadTask.downloadedTaskNum++;
                         tools.runtime.downloadTask.refreshDownLoadStatus();
                     };
@@ -1007,12 +1086,14 @@
 
                 },
                 downloadTask3: function (taskItem, image) {
+                    window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'active'});
                     let request = new XMLHttpRequest();
                     request.open("GET", image.imageInfo.src, true);
                     request.responseType = 'arraybuffer';
                     request.onload = function () {
                         image.imageFile = new Uint8Array(request.response);
                         taskItem.success();
+                        window.coofoUtils.downloadUI.store.chunk(image.parent.parent.downloadUiInfo.id, image.imgDownloadInfo.id, {status: 'done', received: 1});
                         tools.runtime.downloadTask.downloadedTaskNum++;
                         tools.runtime.downloadTask.refreshDownLoadStatus();
                     };
