@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.22
+// @version      0.1.23
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -204,7 +204,7 @@
         });
 
         //全自动触发
-        GM_registerMenuCommand("auto（test）", async function () {
+        GM_registerMenuCommand("auto", async function () {
 
             let postMsgInfo = {listener: null};
 
@@ -283,6 +283,7 @@
             for (let j = 0; j < itemArray.length; j++) {
                 window.open(itemArray[j].url, '_blank');
                 const itemDownloadInfo = itemArray[j].itemDownloadInfo;
+                window.coofoUtils.downloadUI.store.chunk(downloadUiInfo.id,itemDownloadInfo.id,{status:'active'})
 
                 let cbzInfo = await new Promise((resolve, reject) => {
                     postMsgInfo.listener = e => {
