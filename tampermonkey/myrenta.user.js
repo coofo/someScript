@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.24
+// @version      0.1.25
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -58,6 +58,7 @@
          * @type {number}
          */
         downloadRetryTimes: 2,
+        downloadImgType: "webp",
     }
 
 
@@ -78,7 +79,7 @@
                 items: [
                     {key: 'threadNum', type: 'range', label: '下载线程数量', min: 1, max: 10, step: 1, unit: '', default: defSetting.threadNum},
                     {key: 'downloadRetryTimes', type: 'range', label: '下载失败重试次数', min: 0, max: 5, step: 1, unit: '', default: defSetting.downloadRetryTimes},
-                    {key: 'downloadImgType', type: 'select', label: '优先下载的图片格式', options: ['avif', 'webp', 'webp,avif', 'jpeg'], default: 'webp'}
+                    {key: 'downloadImgType', type: 'select', label: '优先下载的图片格式', options: ['avif', 'webp', 'webp,avif', 'jpeg'], default: defSetting.downloadImgType}
                 ]
             },
             {
@@ -681,7 +682,7 @@
 
             downloadDif = async (bookInfo) => await downloadBase(bookInfo).then(async context => {
                 let item = context.items[0];
-                let bookInfo = await new Promise(resolve => tools.myrenta.api.getBookInfo2(urlMatchInfo.itemId, urlMatchInfo.authorization, bookInfo => resolve(bookInfo)));
+                let bookInfo = await new Promise(resolve => tools.myrenta.api.getBookInfo2(urlMatchInfo.itemId, urlMatchInfo.authorization, setting.downloadImgType, bookInfo => resolve(bookInfo)));
                 // item.itemInfo.prdId = bookInfo.prd_id;
                 for (let i = 0; i < bookInfo.pages.length; i++) {
                     let imgDownloadInfo = {
@@ -1023,9 +1024,9 @@
                         complete: onComplete
                     });
                 },
-                getBookInfo2: function (itemId, authorization, onSuccess, onError, onComplete) {
+                getBookInfo2: function (itemId, authorization, caps, onSuccess, onError, onComplete) {
                     let data = {
-                        caps: GM_getValue("downloadImgType", "jpeg"),
+                        caps: caps,
                         // caps: "avif,webp,jpeg",
                     };
                     $.ajax({
