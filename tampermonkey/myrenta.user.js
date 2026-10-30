@@ -107,7 +107,7 @@
 
     GM_registerMenuCommand("下载图片格式设置", function () {
         // caps: "avif,webp,jpeg",
-        let downloadImgType = GM_getValue("downloadImgType", "jpeg");
+        let downloadImgType = GM_getValue("downloadImgType", "webp");
         let val = prompt("输入下载的图片格式，支持 avif,webp,jpeg；多选逗号分割", downloadImgType);
         if (val !== null) {
             let types = val.split(',').filter(s => s.length > 0);
