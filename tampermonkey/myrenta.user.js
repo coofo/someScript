@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         myrenta图片下载
 // @namespace    https://github.com/coofo/someScript
-// @version      0.1.23
+// @version      0.1.24
 // @license      AGPL License
 // @description  下载
 // @author       coofo
@@ -19,6 +19,7 @@
 // @require      https://greasyfork.org/scripts/453330-coofoutils-tampermonkeyutils/code/coofoUtils-tampermonkeyUtils.js?version=1106599
 // @require      https://update.greasyfork.org/scripts/453329/1340176/coofoUtils-comicInfo.js
 // @require      https://update.greasyfork.org/scripts/602538/1977946/coofoUtils-download-ui.js
+// @require      https://update.greasyfork.org/scripts/602860/1980153/coofoUtils-settingsPanel.js
 // @connect      myrenta-books.*
 // @grant        GM_download
 // @grant        GM_xmlhttpRequest
@@ -32,96 +33,160 @@
 (function (tools) {
     'use strict';    //setting
     let setting = tools.setting;
+
+    let defSetting = {
+        imageNameTemplate: "${index_index4}",
+        /**
+         * 文件名格式（包括路径）
+         * ${itemId}       漫画ID
+         * ${title}        漫画名
+         * ${index}        插图序号
+         */
+        cbzNameTemplate: "[myrenta]/${bookId_squareBracket}${author_squareBracket}${bookName_path}${itemId_squareBracket}${title}",
+
+        /**
+         * zip文件名格式（包括路径）
+         */
+        zipNameTemplate: "[myrenta]${bookId_squareBracket}${bookName}",
+        /**
+         * 下载线程数量
+         * @type {number}
+         */
+        threadNum: 5,
+        /**
+         * 下载失败重试次数
+         * @type {number}
+         */
+        downloadRetryTimes: 2,
+    }
+
+
+    const settingsPanel = window.coofoUtils.settingsPanel.create({
+        title: '脚本设置',
+        subtitle: '',
+        storage: "store",                  // 注入存储，不传则纯内存（刷新即失）
+        entry: {
+            // 可选的悬浮按钮，属于面板自身的 UI；不需要就写 button: false 或整行删掉。
+            // 菜单项和快捷键不在这里配 —— 由下面的「入口」一节自己注册。
+            button: false
+        },
+
+        schema: [
+            {
+                tab: '基础',
+                group: '常规',
+                items: [
+                    {key: 'threadNum', type: 'range', label: '下载线程数量', min: 1, max: 10, step: 1, unit: '', default: defSetting.threadNum},
+                    {key: 'downloadRetryTimes', type: 'range', label: '下载失败重试次数', min: 0, max: 5, step: 1, unit: '', default: defSetting.downloadRetryTimes},
+                    {key: 'downloadImgType', type: 'select', label: '优先下载的图片格式', options: ['avif', 'webp', 'webp,avif', 'jpeg'], default: 'webp'}
+                ]
+            },
+            {
+                tab: '高级',
+                group: '命名模板',
+                items: [
+                    {
+                        title: '命名模板怎么写',
+                        type: 'doc',
+                        md: [
+                            '|巨集|说明|',
+                            '|---|---|',
+                            '|${bookId}|漫画ID|',
+                            '|${selectType}|water/adult/all|',
+                            '|${chapterId}|章节ID|',
+                            '|${chapterName}|章节名|',
+                            '|${index}|插图序号`|',
+                            '',
+                            '取到值时才生效，取不到则替换为空字符串',
+                            '|后缀|说明|',
+                            '|---|---|',
+                            '|empty|未取到时填充为空字符串|',
+                            '|parenthesis|圆括号|',
+                            '|squareBracket|方括号|',
+                            '|curlyBracket|大括号|',
+                            '|path|后加文件夹分隔符|',
+                            '|index2|向前添0补全至2位|',
+                            '|index3|向前添0补全至3位（以此类推）|'
+                        ].join('\n')
+                    },
+                    {
+                        key: 'imageNameTemplate',
+                        type: 'textarea',
+                        label: '图片名格式',
+                        placeholder: '',
+                        default: defSetting.imageNameTemplate,
+                        // 折叠说明：内容多时用它，默认收起，不占常驻空间
+                        doc: null
+                    },
+                    {
+                        key: 'cbzNameTemplate',
+                        type: 'textarea',
+                        label: 'cbz包名格式',
+                        placeholder: '',
+                        default: defSetting.cbzNameTemplate,
+                        // 折叠说明：内容多时用它，默认收起，不占常驻空间
+                        doc: null
+                    },
+                    {
+                        key: 'zipNameTemplate',
+                        type: 'textarea',
+                        label: '图片名格式',
+                        placeholder: '',
+                        default: defSetting.zipNameTemplate,
+                        // 折叠说明：内容多时用它，默认收起，不占常驻空间
+                        doc: null
+                    },
+                    //{key: 'io', type: 'action', buttons: ['export', 'import']},
+                    // {key: 'clear', type: 'action', buttons: ['reset']}
+                ]
+            }
+        ],
+        onChange: (key, value, all) => {
+            console.log('[usage] 配置变更', key, value);
+            // if (key === 'enabled') value ? start() : stop();
+        },
+        onClose(reason, all) {
+            console.log('[usage] 配置关闭', reason, all);
+            if (reason !== 'confirm') {
+                settingsPanel.setAll(setting);
+            } else {
+                Object.assign(setting, defSetting, all)
+                GM_setValue("templateSetting", all);
+            }
+
+        }
+    });
+
+    Object.assign(setting, defSetting, GM_getValue("templateSetting", {}));
+    settingsPanel.setAll(setting);
+
+    //设置按钮
+    GM_registerMenuCommand("设置", function () {
+        Object.assign(setting, defSetting, GM_getValue("templateSetting", {}));
+        settingsPanel.setAll(setting);
+        settingsPanel.open();
+    });
+
     let url = window.location.href;
 
 
-    setting.def = {};
-    setting.def.imageNameTemplate = "${index_index4}";
-    /**
-     * 文件名格式（包括路径）
-     * ${itemId}       漫画ID
-     * ${title}        漫画名
-     * ${index}        插图序号
-     */
-    setting.def.cbzNameTemplate = "[myrenta]/${bookId_squareBracket}${author_squareBracket}${bookName_path}${itemId_squareBracket}${title}";
-
-    /**
-     * zip文件名格式（包括路径）
-     */
-    setting.def.zipNameTemplate = "[myrenta]${bookId_squareBracket}${bookName}";
-
-
-    //设置按钮
-    GM_registerMenuCommand("文件名设置", function () {
-        let html = `图片名格式<br/><input id="imageNameTemplate" style="width: 90%;"><br/>
-                    cbz包名格式<br/><input id="cbzNameTemplate" style="width: 90%;"><br/>
-                    压缩包名格式<br/><input id="zipNameTemplate" style="width: 90%;"><br/>
-                        <!--<button id="saveTemplate">保存</button><button id="resetTemplate">默认值</button>-->`;
-        Swal.fire({
-            title: '命名模板设置',
-            html: html,
-            footer: `<div><table border="1">
-                             <tr><td>巨集</td><td>说明</td></tr>
-                             <tr><td>\${bookId}</td><td>作品集合ID（暂存信息后才可获取）</td></tr>
-                             <tr><td>\${bookName}</td><td>作品名称（暂存信息后才可获取）</td></tr>
-                             <tr><td>\${author}</td><td>作者（暂存信息后才可获取）</td></tr>
-                             <tr><td>\${itemId}</td><td>册ID</td></tr>
-                             <tr><td>\${originalTitle}</td><td>完整册标题名</td></tr>
-                             <tr><td>\${title}</td><td>册标题名</td></tr>
-                             <tr><td>\${index}</td><td>图序号</td></tr>
-                          </table><br>
-                          <table border="1">
-                             <tr><td>后缀</td><td>说明（取到值时才生效，取不到则替换为空字符串）</td></tr>
-                             <tr><td>empty</td><td>未取到时填充为空字符串</td></tr>
-                             <tr><td>parenthesis</td><td>圆括号</td></tr>
-                             <tr><td>squareBracket</td><td>方括号</td></tr>
-                             <tr><td>curlyBracket</td><td>大括号</td></tr>
-                             <tr><td>path</td><td>后加文件夹分隔符</td></tr>
-                             <tr><td>index2</td><td>向前添0补全至2位</td></tr>
-                             <tr><td>index3</td><td>向前添0补全至3位（以此类推）</td></tr>
-                         </table></div>`,
-            confirmButtonText: '保存',
-            showDenyButton: true,
-            denyButtonText: `恢复默认`,
-            showCancelButton: true,
-            cancelButtonText: '取消'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                let templateSetting = {
-                    imageNameTemplate: $('#imageNameTemplate').val(),
-                    cbzNameTemplate: $('#cbzNameTemplate').val(),
-                    zipNameTemplate: $('#zipNameTemplate').val()
-                };
-                GM_setValue("templateSetting", templateSetting);
-            } else if (result.isDenied) {
-                GM_deleteValue("templateSetting");
-            }
-        });
-        let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
-
-        $('#imageNameTemplate').val(templateSetting.imageNameTemplate);
-        $('#cbzNameTemplate').val(templateSetting.cbzNameTemplate);
-        $('#zipNameTemplate').val(templateSetting.zipNameTemplate);
-
-    });
-
-    GM_registerMenuCommand("下载图片格式设置", function () {
-        // caps: "avif,webp,jpeg",
-        let downloadImgType = GM_getValue("downloadImgType", "webp");
-        let val = prompt("输入下载的图片格式，支持 avif,webp,jpeg；多选逗号分割", downloadImgType);
-        if (val !== null) {
-            let types = val.split(',').filter(s => s.length > 0);
-            let validTypes = ['avif', 'webp', 'jpeg'];
-            let allValid = types.every(t => validTypes.includes(t));
-            if (allValid && types.length > 0) {
-                downloadImgType = val;
-                GM_setValue("downloadImgType", downloadImgType);
-                alert("保存成功");
-            } else {
-                alert("格式无效，仅支持 avif、webp、jpeg，多个用逗号分割");
-            }
-        }
-    });
+    // GM_registerMenuCommand("下载图片格式设置", function () {
+    //     // caps: "avif,webp,jpeg",
+    //     let downloadImgType = GM_getValue("downloadImgType", "webp");
+    //     let val = prompt("输入下载的图片格式，支持 avif,webp,jpeg；多选逗号分割", downloadImgType);
+    //     if (val !== null) {
+    //         let types = val.split(',').filter(s => s.length > 0);
+    //         let validTypes = ['avif', 'webp', 'jpeg'];
+    //         let allValid = types.every(t => validTypes.includes(t));
+    //         if (allValid && types.length > 0) {
+    //             downloadImgType = val;
+    //             GM_setValue("downloadImgType", downloadImgType);
+    //             alert("保存成功");
+    //         } else {
+    //             alert("格式无效，仅支持 avif、webp、jpeg，多个用逗号分割");
+    //         }
+    //     }
+    // });
 
     let urlMatch = null;
     let urlMatchInfo = {"itemId": null};
@@ -321,22 +386,16 @@
 
                 let zipFile = await zip.generateAsync({type: "blob", compression: "STORE"});
 
-                let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
+                Object.assign(setting, defSetting, GM_getValue("templateSetting", {}));
+                settingsPanel.setAll(setting);
+                let templateSetting = Object.assign({}, setting);
                 let zipFileName = coofoUtils.commonUtils.format.string.filePathByMap(templateSetting.zipNameTemplate, info) + ".zip";
 
                 coofoUtils.commonUtils.downloadHelp.toUser.asTagA4Blob(zipFile, zipFileName);
 
                 window.coofoUtils.downloadUI.store.patch(downloadUiInfo.id, {state: "done", output: zipFileName});
-                Swal.fire({
-                    title: "下载完成",
-                    icon: "success"
-                });
             } else {
                 window.coofoUtils.downloadUI.store.patch(downloadUiInfo.id, {state: "error", message: "下载内容为空"});
-                Swal.fire({
-                    title: "下载内容为空",
-                    icon: "warning"
-                });
             }
 
 
@@ -348,18 +407,6 @@
         || url.match(tools.myrenta.regex.bookDetailUrl2) != null
         || url.match(tools.myrenta.regex.bookDetailUrl3) != null) {
         //阅读页面
-
-        /**
-         * 下载线程数量
-         * @type {number}
-         */
-        setting.threadNum = 5;
-
-        /**
-         * 下载失败重试次数
-         * @type {number}
-         */
-        setting.downloadRetryTimes = 2;
 
         //setting end
         let downloadBase = async function (bookInfo) {
@@ -743,10 +790,12 @@
         GM_registerMenuCommand("下载", async function () {
             // btn.click(function () {
 
-            let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
-            setting.imageNameTemplate = templateSetting.imageNameTemplate;
-            setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
-            setting.zipNameTemplate = templateSetting.zipNameTemplate;
+            Object.assign(setting, defSetting, GM_getValue("templateSetting", {}));
+            settingsPanel.setAll(setting);
+            // let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
+            // setting.imageNameTemplate = templateSetting.imageNameTemplate;
+            // setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
+            // setting.zipNameTemplate = templateSetting.zipNameTemplate;
 
             let info = GM_getValue("bookInfo", {});
             let html = '';
@@ -817,10 +866,12 @@
                             status.html(msg);
                         };
 
-                        let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
-                        setting.imageNameTemplate = templateSetting.imageNameTemplate;
-                        setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
-                        setting.zipNameTemplate = templateSetting.zipNameTemplate;
+                        Object.assign(setting, defSetting, GM_getValue("templateSetting", {}));
+                        settingsPanel.setAll(setting);
+                        // let templateSetting = Object.assign({}, setting.def, GM_getValue("templateSetting", {}));
+                        // setting.imageNameTemplate = templateSetting.imageNameTemplate;
+                        // setting.cbzNameTemplate = templateSetting.cbzNameTemplate;
+                        // setting.zipNameTemplate = templateSetting.zipNameTemplate;
 
                         let info = e.data.info;
 
